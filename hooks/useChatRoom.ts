@@ -112,26 +112,29 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
           }));
         setOnlineUsers(users);
 
+        // Creator is the single source of truth from presence metadata
         const creatorUser = users.find((u) => u.isCreator);
         if (creatorUser) {
           setCreator(creatorUser.user);
+          setIsCreator(creatorUser.user === username);
+        } else {
+          // No creator present — nobody can nuke
+          setCreator(null);
+          setIsCreator(false);
         }
 
         // Debounced lobby update (5s) to avoid excessive messages
         if (visibility === "public" && lobbyChannelRef.current && creatorResolvedRef.current) {
           if (lobbyDebounceRef.current) clearTimeout(lobbyDebounceRef.current);
           lobbyDebounceRef.current = setTimeout(() => {
-            setIsCreator((current) => {
-              if (current && lobbyChannelRef.current) {
-                lobbyChannelRef.current.track({
-                  roomId,
-                  creator: username,
-                  userCount: users.length,
-                  createdAt: new Date().toISOString(),
-                });
-              }
-              return current;
-            });
+            if (creatorUser?.user === username && lobbyChannelRef.current) {
+              lobbyChannelRef.current.track({
+                roomId,
+                creator: username,
+                userCount: users.length,
+                createdAt: new Date().toISOString(),
+              });
+            }
           }, 5000);
         }
       })
@@ -172,15 +175,17 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
           if (!mounted) return;
           setIsConnected(true);
 
+          // Wait briefly for presence state to sync before deciding creator
+          await new Promise((r) => setTimeout(r, 500));
+          if (!mounted) return;
+
           const currentState = channel.presenceState<UserPresence>();
           const existingUsers = Object.values(currentState).flat();
-          const amCreator = existingUsers.length === 0;
+          // Only become creator if no one else already has isCreator
+          const existingCreator = existingUsers.find((u) => u.isCreator);
+          const amCreator = !existingCreator && existingUsers.length === 0;
 
-          setIsCreator(amCreator);
           creatorResolvedRef.current = true;
-          if (amCreator) {
-            setCreator(username);
-          }
 
           await channel.track({
             user: username,

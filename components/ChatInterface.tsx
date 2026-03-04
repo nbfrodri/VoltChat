@@ -103,9 +103,9 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
     router.push("/");
   }
 
-  async function copyRoomUrl() {
+  async function copyRoomId() {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(roomId);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -156,10 +156,10 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
               title={isConnected ? "Connected" : "Connecting..."}
             />
             <button
-              onClick={copyRoomUrl}
+              onClick={copyRoomId}
               className="p-1 text-gray-600 hover:text-gray-300 transition-colors"
-              aria-label="Copy room URL"
-              title="Copy room URL"
+              aria-label="Copy room ID"
+              title="Copy room ID"
             >
               {copied ? (
                 <Check className="h-3.5 w-3.5 text-emerald-400" />
