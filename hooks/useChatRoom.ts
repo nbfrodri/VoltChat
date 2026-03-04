@@ -31,6 +31,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
   const [creator, setCreator] = useState<string | null>(null);
   const [maxUsers, setMaxUsers] = useState<number | undefined>(initialMaxUsers);
   const [isRoomFull, setIsRoomFull] = useState(false);
+  const [isNameTaken, setIsNameTaken] = useState(false);
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [isMuted, setIsMuted] = useState(false);
   const [isKicked, setIsKicked] = useState(false);
@@ -46,9 +47,9 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
   const lastMessageSentRef = useRef(0);
   // Flood detection: track message timestamps per user
   const floodMapRef = useRef<Record<string, number[]>>({});
-  // Auto-delete: track peak user count
-  const peakUserCountRef = useRef(0);
-  const autoDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxUsersDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track known users to avoid spurious join/leave messages on presence re-track
+  const knownUsersRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -66,6 +67,10 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
 
         // Security: reject spoofed system messages from broadcast
         if (msg.type === "system" || msg.user === "system") return;
+
+        // Reject oversized or malformed messages
+        if (typeof msg.text !== "string" || msg.text.length > 500) return;
+        if (typeof msg.user !== "string" || msg.user.length > 24) return;
 
         // Flood detection: drop messages from users exceeding rate
         const now = Date.now();
@@ -174,38 +179,42 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
           }));
         setOnlineUsers(users);
 
-        // Read maxUsers from creator's presence (source of truth)
-        const creatorPresence = users.find((u) => u.isCreator);
-        if (creatorPresence) {
-          setMaxUsers(creatorPresence.maxUsers);
-        }
-
-        // Track peak user count for auto-delete
-        if (users.length > peakUserCountRef.current) {
-          peakUserCountRef.current = users.length;
-        }
-
-        // Auto-delete: if room was occupied (peak > 1) and now only self remains
-        if (users.length === 1 && peakUserCountRef.current > 1) {
-          if (!autoDeleteTimerRef.current) {
+        // Detect real joins/leaves by comparing against known users
+        const currentNames = new Set(users.map((u) => u.user));
+        for (const name of currentNames) {
+          if (!knownUsersRef.current.has(name) && name !== username) {
             setMessages((prev) => [
               ...prev,
               {
                 id: crypto.randomUUID(),
-                text: "Everyone left. The void reclaims this room...",
+                text: `${name} joined the void`,
                 user: "system",
                 timestamp: Date.now(),
                 type: "system",
               },
             ]);
-            autoDeleteTimerRef.current = setTimeout(() => {
-              window.location.href = "/";
-            }, 3000);
           }
-        } else if (users.length > 1 && autoDeleteTimerRef.current) {
-          // Someone rejoined — cancel auto-delete
-          clearTimeout(autoDeleteTimerRef.current);
-          autoDeleteTimerRef.current = null;
+        }
+        for (const name of knownUsersRef.current) {
+          if (!currentNames.has(name) && name !== username) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                text: `${name} dissolved into nothing`,
+                user: "system",
+                timestamp: Date.now(),
+                type: "system",
+              },
+            ]);
+          }
+        }
+        knownUsersRef.current = currentNames;
+
+        // Read maxUsers from creator's presence (source of truth)
+        const creatorPresence = users.find((u) => u.isCreator);
+        if (creatorPresence) {
+          setMaxUsers(creatorPresence.maxUsers);
         }
 
         // Creator is the single source of truth from presence metadata
@@ -235,38 +244,6 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
           }, 5000);
         }
       })
-      .on("presence", { event: "join" }, ({ newPresences }) => {
-        for (const p of newPresences) {
-          const joined = (p as unknown as UserPresence).user;
-          if (joined === username) continue;
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              text: `${joined} joined the void`,
-              user: "system",
-              timestamp: Date.now(),
-              type: "system",
-            },
-          ]);
-        }
-      })
-      .on("presence", { event: "leave" }, ({ leftPresences }) => {
-        for (const p of leftPresences) {
-          const left = (p as unknown as UserPresence).user;
-          if (left === username) continue;
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              text: `${left} dissolved into nothing`,
-              user: "system",
-              timestamp: Date.now(),
-              type: "system",
-            },
-          ]);
-        }
-      })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           if (!mounted) return;
@@ -281,6 +258,13 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
           // Only become creator if no one else already has isCreator
           const existingCreator = existingUsers.find((u) => u.isCreator);
           const amCreator = !existingCreator && existingUsers.length === 0;
+
+          // Check for duplicate username
+          if (existingUsers.some((u) => u.user === username)) {
+            setIsNameTaken(true);
+            supabase.removeChannel(channel);
+            return;
+          }
 
           // Check if room is full (non-creator joining)
           if (!amCreator && existingCreator?.maxUsers) {
@@ -347,18 +331,22 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
     return () => {
       mounted = false;
       if (nukeTimeoutRef.current) clearTimeout(nukeTimeoutRef.current);
-      if (autoDeleteTimerRef.current) clearTimeout(autoDeleteTimerRef.current);
+      if (maxUsersDebounceRef.current) clearTimeout(maxUsersDebounceRef.current);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (sweepIntervalRef.current) clearInterval(sweepIntervalRef.current);
       if (lobbyDebounceRef.current) clearTimeout(lobbyDebounceRef.current);
-      if (lobbyChannelRef.current) supabase.removeChannel(lobbyChannelRef.current);
+      if (lobbyChannelRef.current) {
+        lobbyChannelRef.current.untrack();
+        supabase.removeChannel(lobbyChannelRef.current);
+      }
+      channel.untrack();
       supabase.removeChannel(channel);
     };
   }, [roomId, username, visibility, initialMaxUsers]);
 
   const sendMessage = useCallback(
     (text: string) => {
-      const trimmed = text.trim();
+      const trimmed = text.trim().slice(0, 500);
       if (!trimmed || !channelRef.current || isMuted) return;
 
       // Rate limit: min 250ms between messages
@@ -440,12 +428,16 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
     (newMax: number | undefined) => {
       if (!isCreator || !channelRef.current) return;
       setMaxUsers(newMax);
-      channelRef.current.track({
-        user: username,
-        online_at: new Date().toISOString(),
-        isCreator: true,
-        ...(newMax ? { maxUsers: newMax } : {}),
-      });
+      // Debounce presence track to avoid flooding during slider drags
+      if (maxUsersDebounceRef.current) clearTimeout(maxUsersDebounceRef.current);
+      maxUsersDebounceRef.current = setTimeout(() => {
+        channelRef.current?.track({
+          user: username,
+          online_at: new Date().toISOString(),
+          isCreator: true,
+          ...(newMax ? { maxUsers: newMax } : {}),
+        });
+      }, 300);
     },
     [isCreator, username]
   );
@@ -486,10 +478,12 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
 
   const leaveRoom = useCallback(() => {
     if (lobbyChannelRef.current) {
+      lobbyChannelRef.current.untrack();
       supabase.removeChannel(lobbyChannelRef.current);
       lobbyChannelRef.current = null;
     }
     if (channelRef.current) {
+      channelRef.current.untrack();
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
@@ -509,6 +503,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: U
     creator,
     maxUsers,
     isRoomFull,
+    isNameTaken,
     isMuted,
     isKicked,
     mutedUsers,

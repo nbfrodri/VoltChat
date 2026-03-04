@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { User, ArrowRight } from "lucide-react";
+import { validateUsername } from "@/lib/utils";
 
 interface JoinModalProps {
   roomId: string;
@@ -19,16 +20,12 @@ export default function JoinModal({ roomId, onJoin }: JoinModalProps) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = username.trim();
-    if (!trimmed) {
-      setError("Please enter a name to enter the void.");
+    const result = validateUsername(username);
+    if (!result.valid) {
+      setError(result.error);
       return;
     }
-    if (trimmed.toLowerCase() === "system") {
-      setError("That name is reserved.");
-      return;
-    }
-    onJoin(trimmed);
+    onJoin(result.name);
   }
 
   return (

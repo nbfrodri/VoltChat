@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Hash, Bomb, Menu, ChevronDown, Copy, Check, LogOut, Globe, Lock, Users, Settings, X } from "lucide-react";
+import { Hash, Bomb, Menu, ChevronDown, Copy, Check, LogOut, Globe, Lock, Users, Settings, X, UserX } from "lucide-react";
 import { useChatRoom } from "@/hooks/useChatRoom";
 import { getMessageOpacity } from "@/lib/utils";
 import type { RoomVisibility } from "@/lib/types";
@@ -32,6 +32,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
     creator,
     maxUsers,
     isRoomFull,
+    isNameTaken,
     isMuted,
     isKicked,
     mutedUsers,
@@ -51,7 +52,8 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [capacityInput, setCapacityInput] = useState<string>("");
+  const [hasLimit, setHasLimit] = useState(false);
+  const [capacityInput, setCapacityInput] = useState(10);
 
   // Nuke animation phases
   const [nukePhase, setNukePhase] = useState(0);
@@ -139,6 +141,27 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
             className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white rounded-xl px-6 py-3 text-sm font-medium transition-colors"
           >
             Back to lobby
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Name taken screen
+  if (isNameTaken) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-gray-950 px-4">
+        <div className="text-center">
+          <UserX className="h-10 w-10 text-yellow-500/60 mx-auto mb-4" />
+          <h2 className="text-lg font-medium text-gray-100 mb-2">Name already taken</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Someone in this room is already using that name.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white rounded-xl px-6 py-3 text-sm font-medium transition-colors"
+          >
+            Try another name
           </button>
         </div>
       </div>
@@ -240,8 +263,10 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
               <div className="relative">
                 <button
                   onClick={() => {
+                    // Initialize state from current maxUsers when opening
+                    setHasLimit(!!maxUsers);
+                    setCapacityInput(maxUsers || Math.max(10, onlineUsers.length));
                     setShowSettings(!showSettings);
-                    setCapacityInput(maxUsers ? String(maxUsers) : "");
                   }}
                   className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                   aria-label="Room settings"
@@ -249,54 +274,6 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
                 >
                   <Settings className="h-3.5 w-3.5" />
                 </button>
-                {showSettings && (
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-lg z-50">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs text-gray-400 uppercase tracking-wider">User limit</span>
-                      <button
-                        onClick={() => setShowSettings(false)}
-                        className="p-0.5 text-gray-500 hover:text-gray-300"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={onlineUsers.length}
-                        max={50}
-                        value={capacityInput}
-                        onChange={(e) => setCapacityInput(e.target.value)}
-                        placeholder="No limit"
-                        className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() => {
-                          const val = Number(capacityInput);
-                          if (val >= onlineUsers.length && val <= 50) {
-                            updateMaxUsers(val);
-                            setShowSettings(false);
-                          }
-                        }}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-lg py-1.5 transition-colors"
-                      >
-                        Set
-                      </button>
-                      <button
-                        onClick={() => {
-                          updateMaxUsers(undefined);
-                          setCapacityInput("");
-                          setShowSettings(false);
-                        }}
-                        className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded-lg py-1.5 transition-colors"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
             {isCreator && (
@@ -383,6 +360,73 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
           />
         )}
       </div>
+
+      {/* Settings modal */}
+      {showSettings && isCreator && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowSettings(false);
+          }}
+        >
+          <div className="w-full max-w-xs bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs text-gray-400 uppercase tracking-wider">User limit</span>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="p-0.5 text-gray-500 hover:text-gray-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm text-gray-300">Enable limit</span>
+              <button
+                onClick={() => {
+                  const next = !hasLimit;
+                  setHasLimit(next);
+                  if (!next) {
+                    updateMaxUsers(undefined);
+                  } else {
+                    const clamped = Math.max(Math.max(2, onlineUsers.length), Math.min(50, capacityInput));
+                    setCapacityInput(clamped);
+                    updateMaxUsers(clamped);
+                  }
+                }}
+                className={`relative w-9 h-5 rounded-full transition-colors ${
+                  hasLimit ? "bg-emerald-600" : "bg-gray-700"
+                }`}
+                aria-label="Toggle user limit"
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                    hasLimit ? "translate-x-4" : ""
+                  }`}
+                />
+              </button>
+            </div>
+            {hasLimit && (
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={Math.max(2, onlineUsers.length)}
+                  max={50}
+                  value={capacityInput}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setCapacityInput(val);
+                    updateMaxUsers(val);
+                  }}
+                  className="flex-1 accent-emerald-500"
+                />
+                <span className="text-sm text-gray-300 w-8 text-right tabular-nums">
+                  {capacityInput}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Nuke overlay */}
       {isNuking && <NukeOverlay onComplete={handleNukeComplete} />}

@@ -1,19 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { MessageCircle, Plus, Hash, ArrowRight, Globe } from "lucide-react";
-import { generateRoomId } from "@/lib/utils";
+import { MessageCircle, Plus, Hash, ArrowRight, Globe, Loader2 } from "lucide-react";
+import { generateRoomId, isValidRoomId } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 import { useLobby } from "@/hooks/useLobby";
-import type { RoomVisibility } from "@/lib/types";
+import type { RoomVisibility, UserPresence } from "@/lib/types";
 import PublicRoomCard from "@/components/PublicRoomCard";
 import CreateRoomModal from "@/components/CreateRoomModal";
 
 export default function LandingPage() {
   const router = useRouter();
   const [joinId, setJoinId] = useState("");
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { publicRooms, isLoading } = useLobby();
+  const checkChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   function handleCreateRoom(visibility: RoomVisibility, maxUsers?: number) {
     const roomId = generateRoomId();
@@ -22,11 +26,74 @@ export default function LandingPage() {
     router.push(`/room/${roomId}?${params.toString()}`);
   }
 
-  function handleJoinRoom(e: React.FormEvent) {
+  async function handleJoinRoom(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = joinId.trim();
-    if (!trimmed) return;
-    router.push(`/room/${trimmed}`);
+    if (!trimmed || isChecking) return;
+    if (!isValidRoomId(trimmed)) {
+      setJoinError("Room ID can only contain letters and numbers (max 20 chars).");
+      return;
+    }
+    setJoinError(null);
+    setIsChecking(true);
+
+    // Clean up any previous check channel
+    if (checkChannelRef.current) {
+      supabase.removeChannel(checkChannelRef.current);
+      checkChannelRef.current = null;
+    }
+
+    try {
+      const exists = await new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => {
+          cleanup();
+          resolve(false);
+        }, 4000);
+
+        const channel = supabase.channel(`room_${trimmed}`, {
+          config: { presence: { key: `_check_${Date.now()}` } },
+        });
+        checkChannelRef.current = channel;
+
+        function cleanup() {
+          clearTimeout(timeout);
+          supabase.removeChannel(channel);
+          checkChannelRef.current = null;
+        }
+
+        channel.on("presence", { event: "sync" }, () => {
+          const state = channel.presenceState<UserPresence>();
+          const users = Object.values(state).flat();
+          cleanup();
+          resolve(users.length > 0);
+        });
+
+        channel.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            // Give a moment for presence state to arrive
+            setTimeout(() => {
+              const state = channel.presenceState<UserPresence>();
+              const users = Object.values(state).flat();
+              cleanup();
+              resolve(users.length > 0);
+            }, 800);
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            cleanup();
+            resolve(false);
+          }
+        });
+      });
+
+      if (exists) {
+        router.push(`/room/${trimmed}`);
+      } else {
+        setJoinError("No active room found with that ID.");
+        setIsChecking(false);
+      }
+    } catch {
+      setJoinError("Could not check room. Try again.");
+      setIsChecking(false);
+    }
   }
 
   return (
@@ -79,7 +146,10 @@ export default function LandingPage() {
                 <input
                   type="text"
                   value={joinId}
-                  onChange={(e) => setJoinId(e.target.value)}
+                  onChange={(e) => {
+                    setJoinId(e.target.value);
+                    if (joinError) setJoinError(null);
+                  }}
                   placeholder="Enter room ID..."
                   maxLength={20}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-9 pr-3 py-3 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-colors"
@@ -87,11 +157,19 @@ export default function LandingPage() {
               </div>
               <button
                 type="submit"
-                className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white rounded-xl px-4 py-3 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                disabled={isChecking}
+                className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white rounded-xl px-4 py-3 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50"
               >
-                <ArrowRight className="h-4 w-4" />
+                {isChecking ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
               </button>
             </form>
+            {joinError && (
+              <p className="text-red-400 text-xs mt-2">{joinError}</p>
+            )}
           </div>
         </div>
 
