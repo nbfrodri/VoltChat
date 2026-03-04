@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/* ===== Theme Tokens ===== */
+@theme inline {
+  /* Void (near-black backgrounds) */
+  --color-void-950: #020408;
+  --color-void-900: #0a0f1a;
+  --color-void-800: #111827;
+  --color-void-700: #1e293b;
+
+  /* Phantom (emerald accents) */
+  --color-phantom-400: #34d399;
+  --color-phantom-500: #10b981;
+  --color-phantom-600: #059669;
+
+  /* Ghost (purple accents) */
+  --color-ghost-400: #a78bfa;
+  --color-ghost-500: #8b5cf6;
+
+  /* Glow shadows */
+  --shadow-glow-green: 0 0 15px rgb(16 185 129 / 0.15);
+  --shadow-glow-red: 0 0 20px rgb(239 68 68 / 0.2);
+
+  /* Font */
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+
+  /* Animations */
+  --animate-slide-in: slide-in 0.2s ease-out;
+  --animate-slide-in-left: slide-in-left 0.18s ease-out forwards;
+  --animate-slide-in-right: slide-in-right 0.18s ease-out forwards;
+  --animate-shake: shake 0.5s ease-in-out;
+  --animate-flash-red: flash-red 0.6s ease-in-out;
+  --animate-disintegrate: disintegrate 0.6s ease-out forwards;
+
+  /* Keyframes */
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slide-in-left {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-4px, 2px); }
+    20% { transform: translate(3px, -3px); }
+    30% { transform: translate(-2px, 4px); }
+    40% { transform: translate(4px, -1px); }
+    50% { transform: translate(-3px, -2px); }
+  }
+
+  @keyframes flash-red {
+    0%, 100% { background-color: transparent; }
+    25%, 75% { background-color: rgb(239 68 68 / 0.15); }
+    50% { background-color: rgb(239 68 68 / 0.3); }
+  }
+
+  @keyframes disintegrate {
+    0% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+    40% { opacity: 0.6; transform: scale(1.02) translateY(-2px); filter: blur(1px); }
+    70% { opacity: 0.2; transform: scale(0.95) translateY(-10px); filter: blur(3px); }
+    100% { opacity: 0; transform: scale(0.8) translateY(-30px); filter: blur(6px); }
+  }
+
+  @keyframes blink-cursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  @keyframes ghost-fade {
+    0% { opacity: 1; }
+    70% { opacity: 0.6; }
+    95% { opacity: 0.1; }
+    100% { opacity: 0; height: 0; padding: 0; margin: 0; overflow: hidden; }
+  }
+}
+
+/* ===== Utility Classes ===== */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ===== Emoji Picker Overrides ===== */
+.emoji-picker-container .EmojiPickerReact {
+  --epr-bg-color: #111827 !important;
+  --epr-category-label-bg-color: #111827 !important;
+  --epr-hover-bg-color: #1f2937 !important;
+  --epr-focus-bg-color: #1f2937 !important;
+  --epr-search-input-bg-color: #1f2937 !important;
+  --epr-text-color: #d1d5db !important;
+  --epr-search-input-text-color: #e5e7eb !important;
+  --epr-search-input-placeholder-color: #6b7280 !important;
+  --epr-category-icon-active-color: #10b981 !important;
+  --epr-highlight-color: #059669 !important;
+  --epr-search-border-color: #374151 !important;
+  --epr-border-color: #374151 !important;
+  --epr-header-padding: 8px 12px !important;
+  border: 1px solid #374151 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.5), 0 0 15px rgb(16 185 129 / 0.05) !important;
+}
+
+.emoji-picker-container .EmojiPickerReact .epr-search-container input {
+  border-radius: 10px !important;
+  border: 1px solid #374151 !important;
+}
+
+.emoji-picker-container .EmojiPickerReact .epr-search-container input:focus {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 1px rgb(16 185 129 / 0.3) !important;
+}
+
+.emoji-picker-container .EmojiPickerReact .epr-emoji-category-label {
+  backdrop-filter: blur(8px) !important;
+}
+
+.emoji-picker-container .EmojiPickerReact button.epr-emoji:hover {
+  background-color: #1f2937 !important;
+  border-radius: 8px !important;
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
