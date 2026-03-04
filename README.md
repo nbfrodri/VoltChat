@@ -1,68 +1,102 @@
+<div align="center">
+
+<img src="app/icon.svg" alt="VoltChat" width="80" height="80" />
+
 # VoltChat
 
-Anonymous, ephemeral real-time chat. No accounts. No logs. Gone when you leave.
+**Anonymous. Ephemeral. Gone when you leave.**
+
+Real-time chat with zero data persistence. No accounts, no logs, no traces.
+
+[![Next.js](https://img.shields.io/badge/Next.js_16-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Supabase](https://img.shields.io/badge/Supabase_Realtime-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+
+</div>
+
+---
+
+## How It Works
+
+VoltChat relays messages through **Supabase Realtime WebSockets** — nothing is ever stored in a database. When the last user leaves a room, every message vanishes. There is no message history, no user data, and no server-side storage.
+
+```
+User A  ──→  Supabase WebSocket  ──→  User B
+              (relay only)
+              zero persistence
+```
+
+---
 
 ## Features
 
-- **Zero persistence** — Messages are relayed via WebSockets, never stored in a database
-- **Real-time chat** — Instant messaging powered by Supabase Realtime Broadcast
-- **Public & Private rooms** — Public rooms are discoverable on the landing page; private rooms are link-only
-- **Presence tracking** — See who's online in real-time via Supabase Presence
-- **Typing indicators** — See when others are typing (no text preview, just "is typing...")
-- **Visual message decay** — Older messages fade in opacity, reinforcing ephemerality
-- **Nuke room** — Room creator can destroy the room with a dramatic animation, kicking everyone
-- **Emoji support** — Built-in emoji picker with dark theme
-- **Responsive** — Works on mobile and desktop with a drawer sidebar
-- **Accessible** — ARIA roles, reduced motion support, keyboard navigation
+| Feature | Description |
+|---------|-------------|
+| **Ephemeral messaging** | Messages exist only in connected clients' memory |
+| **Public & Private rooms** | Public rooms are discoverable; private rooms are link-only |
+| **Presence tracking** | See who's online in real-time |
+| **Typing indicators** | "X is typing..." with animated dots |
+| **Visual message decay** | Older messages fade in opacity |
+| **Nuke room** | Room creator can destroy the room with a dramatic animation |
+| **Emoji picker** | Dark-themed emoji picker (lazy-loaded for performance) |
+| **Responsive** | Mobile drawer sidebar + desktop layout |
+| **Accessible** | ARIA roles, reduced motion, keyboard navigation |
+| **Security hardened** | Flood detection, system message filtering, nuke validation |
+
+---
 
 ## Tech Stack
 
-- **Framework:** Next.js 16 (App Router, Turbopack)
-- **Language:** TypeScript (strict mode)
-- **Styling:** Tailwind CSS v4 (CSS-first config)
-- **Realtime:** Supabase Realtime (Broadcast + Presence)
-- **Icons:** Lucide React
-- **Font:** JetBrains Mono
+| Technology | Purpose |
+|-----------|---------|
+| [Next.js 16](https://nextjs.org/) | App Router, Turbopack, SSR |
+| [TypeScript](https://www.typescriptlang.org/) | Strict mode, full type safety |
+| [Tailwind CSS v4](https://tailwindcss.com/) | CSS-first theme configuration |
+| [Supabase Realtime](https://supabase.com/docs/guides/realtime) | Broadcast (messaging) + Presence (online users) |
+| [Lucide React](https://lucide.dev/) | Tree-shakeable icon library |
+| [JetBrains Mono](https://www.jetbrains.com/lp/mono/) | Monospace font |
+| [emoji-picker-react](https://github.com/ealush/emoji-picker-react) | Emoji selection (dynamically imported) |
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+
-- A [Supabase](https://supabase.com) project (free tier works)
+- A [Supabase](https://supabase.com) project (free tier works perfectly)
 
 ### Setup
 
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/nbf_rodri/VoltChat.git
-   cd VoltChat
-   ```
+```bash
+# Clone and install
+git clone https://github.com/nbfrodri/VoltChat.git
+cd VoltChat
+npm install
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+# Configure environment
+cp .env.local.example .env.local
+# Edit .env.local with your Supabase credentials
+```
 
-3. Create `.env.local` from the example:
-   ```bash
-   cp .env.local.example .env.local
-   ```
+Add your Supabase credentials to `.env.local`:
 
-4. Add your Supabase credentials to `.env.local`:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+```
 
-   > No database tables needed — VoltChat only uses Supabase's Broadcast and Presence features which require zero server-side setup.
+> **No database tables needed.** VoltChat only uses Supabase's Broadcast and Presence features — zero server-side setup required.
 
-5. Run the dev server:
-   ```bash
-   npm run dev
-   ```
+```bash
+# Run
+npm run dev
+```
 
-6. Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000)
+
+---
 
 ## Deploy on Vercel
 
@@ -73,39 +107,68 @@ Anonymous, ephemeral real-time chat. No accounts. No logs. Gone when you leave.
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 4. Deploy
 
+---
+
 ## Project Structure
 
 ```
 app/
-  layout.tsx          # Root layout (JetBrains Mono, dark theme)
-  page.tsx            # Landing page
-  globals.css         # Tailwind v4 theme, animations, utilities
-  icon.svg            # Favicon (lightning bolt)
-  room/[roomId]/
-    page.tsx          # Room page (join modal + chat)
+├── layout.tsx             Root layout (JetBrains Mono, dark theme)
+├── page.tsx               Landing page
+├── globals.css            Tailwind v4 theme, animations, utilities
+├── icon.svg               Favicon (lightning bolt)
+└── room/[roomId]/
+    └── page.tsx           Room page (join modal → chat)
 
 components/
-  LandingPage.tsx     # Create/join room, public rooms listing
-  CreateRoomModal.tsx # Public/private room creation
-  JoinModal.tsx       # Username capture
-  ChatInterface.tsx   # Main chat layout
-  MessageBubble.tsx   # Individual message display
-  MessageInput.tsx    # Input with emoji picker
-  UserSidebar.tsx     # Online users with creator crown
-  TypingIndicator.tsx # "X is typing..." with bouncing dots
-  NukeOverlay.tsx     # Room destruction animation
-  SystemMessage.tsx   # Join/leave system messages
-  PublicRoomCard.tsx  # Public room listing card
+├── LandingPage.tsx        Create/join room + public rooms listing
+├── CreateRoomModal.tsx    Public/private room creation
+├── JoinModal.tsx          Username capture with validation
+├── ChatInterface.tsx      Main chat orchestrator
+├── MessageBubble.tsx      Individual message display
+├── MessageInput.tsx       Input with lazy-loaded emoji picker
+├── UserSidebar.tsx        Online users + creator crown
+├── TypingIndicator.tsx    "X is typing..." with bouncing dots
+├── NukeOverlay.tsx        Room destruction animation
+├── SystemMessage.tsx      Join/leave system messages
+└── PublicRoomCard.tsx     Public room listing card
 
 hooks/
-  useChatRoom.ts      # Core realtime hook (broadcast, presence, typing, nuke)
-  useLobby.ts         # Public room discovery via lobby presence
+├── useChatRoom.ts         Core realtime (broadcast, presence, typing, nuke)
+└── useLobby.ts            Public room discovery via lobby presence
 
 lib/
-  supabase.ts         # Singleton Supabase client
-  types.ts            # TypeScript interfaces
-  utils.ts            # Room ID generation, message opacity
+├── supabase.ts            Singleton Supabase client
+├── types.ts               TypeScript interfaces
+└── utils.ts               Crypto room ID generation, message opacity
 ```
+
+---
+
+## Security
+
+- Spoofed system messages are filtered at the broadcast level
+- Nuke commands are validated against the known room creator
+- Per-user flood detection drops excessive messages (20 msgs / 5s window)
+- Room IDs use `crypto.getRandomValues()` (12 chars, ~4.7 x 10^18 combinations)
+- Reserved username "system" is blocked
+- All user content rendered via React JSX (auto-escaped, no `innerHTML`)
+- Message and typing rate limits enforced client-side
+- `strict: true` TypeScript, zero `any` types
+
+---
+
+## Free Tier Optimized
+
+Designed to run within Supabase and Vercel free tier limits:
+
+- **Typing throttle: 2000ms** (not 100ms) — dramatically reduces message count
+- **State-transition typing** — only broadcasts on start/stop, not every keystroke
+- **Emoji picker lazy-loaded** — ~300KB bundle loaded only when opened
+- **Debounced lobby updates** — 5s debounce instead of per-presence-sync
+- **Proper channel cleanup** — all subscriptions removed on unmount
+
+---
 
 ## License
 

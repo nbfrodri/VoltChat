@@ -1,8 +1,21 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Send, Smile } from "lucide-react";
-import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
+import type { EmojiClickData } from "emoji-picker-react";
+import { Theme } from "emoji-picker-react";
+
+// Lazy-load the heavy emoji picker (~200-400KB) — only downloaded on first open
+const EmojiPicker = dynamic(
+  () => import("emoji-picker-react").then((m) => m.default),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-[320px] h-[400px] bg-gray-800 rounded-xl animate-pulse" />
+    ),
+  }
+);
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -50,7 +63,7 @@ export default function MessageInput({ onSend, onTyping, disabled }: MessageInpu
 
   return (
     <div className="relative border-t border-gray-800 bg-gray-900/90 backdrop-blur-md p-4">
-      {/* Emoji picker popover */}
+      {/* Emoji picker popover — lazy loaded */}
       {showEmojis && (
         <div ref={pickerRef} className="absolute bottom-full left-4 mb-2 z-40 emoji-picker-container">
           <EmojiPicker

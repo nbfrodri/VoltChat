@@ -1,11 +1,9 @@
 const CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 export function generateRoomId(): string {
-  let result = "";
-  for (let i = 0; i < 6; i++) {
-    result += CHARS[Math.floor(Math.random() * CHARS.length)];
-  }
-  return result;
+  const array = new Uint8Array(12);
+  crypto.getRandomValues(array);
+  return Array.from(array, (b) => CHARS[b % CHARS.length]).join("");
 }
 
 export function getMessageOpacity(index: number, total: number): number {

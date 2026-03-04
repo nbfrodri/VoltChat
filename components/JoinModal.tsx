@@ -10,7 +10,7 @@ interface JoinModalProps {
 
 export default function JoinModal({ roomId, onJoin }: JoinModalProps) {
   const [username, setUsername] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -21,7 +21,11 @@ export default function JoinModal({ roomId, onJoin }: JoinModalProps) {
     e.preventDefault();
     const trimmed = username.trim();
     if (!trimmed) {
-      setError(true);
+      setError("Please enter a name to enter the void.");
+      return;
+    }
+    if (trimmed.toLowerCase() === "system") {
+      setError("That name is reserved.");
       return;
     }
     onJoin(trimmed);
@@ -54,21 +58,21 @@ export default function JoinModal({ roomId, onJoin }: JoinModalProps) {
             value={username}
             onChange={(e) => {
               setUsername(e.target.value);
-              if (error) setError(false);
+              if (error) setError(null);
             }}
             placeholder="Your name in the void..."
             maxLength={24}
-            aria-invalid={error}
+            aria-invalid={!!error}
             aria-describedby={error ? "username-error" : undefined}
             className={`w-full bg-gray-800 border rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-1 transition-colors ${
-              error
+              error !== null
                 ? "border-red-500 focus:border-red-500 focus:ring-red-500/50"
                 : "border-gray-700 focus:border-emerald-500 focus:ring-emerald-500/50"
             }`}
           />
           {error && (
             <p id="username-error" className="text-red-400 text-xs mt-2">
-              Please enter a name to enter the void.
+              {error}
             </p>
           )}
 
