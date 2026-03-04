@@ -15,9 +15,11 @@ export default function LandingPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { publicRooms, isLoading } = useLobby();
 
-  function handleCreateRoom(visibility: RoomVisibility) {
+  function handleCreateRoom(visibility: RoomVisibility, maxUsers?: number) {
     const roomId = generateRoomId();
-    router.push(`/room/${roomId}?v=${visibility}`);
+    const params = new URLSearchParams({ v: visibility });
+    if (maxUsers) params.set("max", String(maxUsers));
+    router.push(`/room/${roomId}?${params.toString()}`);
   }
 
   function handleJoinRoom(e: React.FormEvent) {
@@ -138,9 +140,9 @@ export default function LandingPage() {
       {showCreateModal && (
         <CreateRoomModal
           onClose={() => setShowCreateModal(false)}
-          onCreate={(vis) => {
+          onCreate={(vis, max) => {
             setShowCreateModal(false);
-            handleCreateRoom(vis);
+            handleCreateRoom(vis, max);
           }}
         />
       )}

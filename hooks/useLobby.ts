@@ -10,6 +10,7 @@ interface LobbyPresence {
   creator: string;
   userCount: number;
   createdAt: string;
+  maxUsers?: number;
 }
 
 export function useLobby() {
@@ -32,6 +33,7 @@ export function useLobby() {
             creator: p.creator,
             userCount: p.userCount,
             createdAt: p.createdAt,
+            maxUsers: p.maxUsers,
           }));
         setPublicRooms(rooms);
         setIsLoading(false);

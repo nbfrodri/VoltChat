@@ -42,6 +42,9 @@ User A  ──→  Supabase WebSocket  ──→  User B
 | **Emoji picker** | Dark-themed emoji picker (lazy-loaded for performance) |
 | **Responsive** | Mobile drawer sidebar + desktop layout |
 | **Accessible** | ARIA roles, reduced motion, keyboard navigation |
+| **Room capacity** | Optional user limit per room, editable by creator |
+| **Auto-delete rooms** | Rooms auto-redirect when all other users leave |
+| **Kick & Mute** | Room creator can kick or mute users with confirmation |
 | **Security hardened** | Flood detection, system message filtering, nuke validation |
 
 ---

@@ -10,6 +10,7 @@ export interface UserPresence {
   user: string;
   online_at: string;
   isCreator?: boolean;
+  maxUsers?: number;
 }
 
 export interface TypingUser {
@@ -24,4 +25,5 @@ export interface PublicRoom {
   creator: string;
   userCount: number;
   createdAt: string;
+  maxUsers?: number;
 }

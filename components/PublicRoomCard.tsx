@@ -21,7 +21,10 @@ export default function PublicRoomCard({ room, onClick }: PublicRoomCardProps) {
         </div>
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <Users className="h-3 w-3" />
-          <span>{room.userCount}</span>
+          <span>
+            {room.userCount}
+            {room.maxUsers ? `/${room.maxUsers}` : ""}
+          </span>
         </div>
       </div>
       <div className="flex items-center gap-1.5 text-xs text-gray-500">

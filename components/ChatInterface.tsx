@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Hash, Bomb, Menu, ChevronDown, Copy, Check, LogOut, Globe, Lock } from "lucide-react";
+import { Hash, Bomb, Menu, ChevronDown, Copy, Check, LogOut, Globe, Lock, Users, Settings, X } from "lucide-react";
 import { useChatRoom } from "@/hooks/useChatRoom";
 import { getMessageOpacity } from "@/lib/utils";
 import type { RoomVisibility } from "@/lib/types";
@@ -17,9 +17,10 @@ interface ChatInterfaceProps {
   roomId: string;
   username: string;
   visibility: RoomVisibility;
+  initialMaxUsers?: number;
 }
 
-export default function ChatInterface({ roomId, username, visibility }: ChatInterfaceProps) {
+export default function ChatInterface({ roomId, username, visibility, initialMaxUsers }: ChatInterfaceProps) {
   const router = useRouter();
   const {
     messages,
@@ -29,11 +30,19 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
     isConnected,
     isCreator,
     creator,
+    maxUsers,
+    isRoomFull,
+    isMuted,
+    isKicked,
+    mutedUsers,
     sendMessage,
     sendTyping,
     nukeRoom,
     leaveRoom,
-  } = useChatRoom({ roomId, username, visibility });
+    updateMaxUsers,
+    kickUser,
+    muteUser,
+  } = useChatRoom({ roomId, username, visibility, initialMaxUsers });
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -41,6 +50,8 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [capacityInput, setCapacityInput] = useState<string>("");
 
   // Nuke animation phases
   const [nukePhase, setNukePhase] = useState(0);
@@ -113,6 +124,48 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
     }
   }
 
+  // Kicked screen
+  if (isKicked) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-gray-950 px-4">
+        <div className="text-center">
+          <LogOut className="h-10 w-10 text-red-500/60 mx-auto mb-4" />
+          <h2 className="text-lg font-medium text-gray-100 mb-2">You were kicked</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            The room creator removed you from this room.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white rounded-xl px-6 py-3 text-sm font-medium transition-colors"
+          >
+            Back to lobby
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Room full screen
+  if (isRoomFull) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-gray-950 px-4">
+        <div className="text-center">
+          <Users className="h-10 w-10 text-gray-600 mx-auto mb-4" />
+          <h2 className="text-lg font-medium text-gray-100 mb-2">Room is full</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            This room has reached its maximum capacity.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white rounded-xl px-6 py-3 text-sm font-medium transition-colors"
+          >
+            Back to lobby
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex h-dvh bg-gray-950 ${
@@ -126,6 +179,10 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
         creator={creator}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        isCreator={isCreator}
+        mutedUsers={mutedUsers}
+        onKick={kickUser}
+        onMute={muteUser}
       />
 
       {/* Main chat area */}
@@ -140,8 +197,12 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
             >
               <Menu className="h-4 w-4" />
             </button>
-            <Hash className="h-4 w-4 text-gray-600" />
-            <span className="text-sm text-emerald-400">{roomId}</span>
+            {visibility === "private" && (
+              <>
+                <Hash className="h-4 w-4 text-gray-600" />
+                <span className="text-sm text-emerald-400">{roomId}</span>
+              </>
+            )}
             <span title={visibility === "public" ? "Public room" : "Private room"}>
               {visibility === "public" ? (
                 <Globe className="h-3 w-3 text-gray-600" />
@@ -149,26 +210,95 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
                 <Lock className="h-3 w-3 text-gray-600" />
               )}
             </span>
+            <span className="flex items-center gap-1 text-xs text-gray-500">
+              <Users className="h-3 w-3" />
+              {onlineUsers.length}{maxUsers ? `/${maxUsers}` : ""}
+            </span>
             <span
               className={`w-2 h-2 rounded-full ml-1 ${
                 isConnected ? "bg-emerald-500" : "bg-yellow-500 animate-pulse"
               }`}
               title={isConnected ? "Connected" : "Connecting..."}
             />
-            <button
-              onClick={copyRoomId}
-              className="p-1 text-gray-600 hover:text-gray-300 transition-colors"
-              aria-label="Copy room ID"
-              title="Copy room ID"
-            >
-              {copied ? (
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
-              ) : (
-                <Copy className="h-3.5 w-3.5" />
-              )}
-            </button>
+            {visibility === "private" && (
+              <button
+                onClick={copyRoomId}
+                className="p-1 text-gray-600 hover:text-gray-300 transition-colors"
+                aria-label="Copy room ID"
+                title="Copy room ID"
+              >
+                {copied ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-3">
+            {isCreator && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowSettings(!showSettings);
+                    setCapacityInput(maxUsers ? String(maxUsers) : "");
+                  }}
+                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                  aria-label="Room settings"
+                  title="Room settings"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                </button>
+                {showSettings && (
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-lg z-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs text-gray-400 uppercase tracking-wider">User limit</span>
+                      <button
+                        onClick={() => setShowSettings(false)}
+                        className="p-0.5 text-gray-500 hover:text-gray-300"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={onlineUsers.length}
+                        max={50}
+                        value={capacityInput}
+                        onChange={(e) => setCapacityInput(e.target.value)}
+                        placeholder="No limit"
+                        className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => {
+                          const val = Number(capacityInput);
+                          if (val >= onlineUsers.length && val <= 50) {
+                            updateMaxUsers(val);
+                            setShowSettings(false);
+                          }
+                        }}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-lg py-1.5 transition-colors"
+                      >
+                        Set
+                      </button>
+                      <button
+                        onClick={() => {
+                          updateMaxUsers(undefined);
+                          setCapacityInput("");
+                          setShowSettings(false);
+                        }}
+                        className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded-lg py-1.5 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {isCreator && (
               <button
                 onClick={nukeRoom}
@@ -239,11 +369,19 @@ export default function ChatInterface({ roomId, username, visibility }: ChatInte
         <TypingIndicator typingUsers={typingUsers} />
 
         {/* Input */}
-        <MessageInput
-          onSend={handleSend}
-          onTyping={handleInputChange}
-          disabled={isNuking || !isConnected}
-        />
+        {isMuted ? (
+          <div className="px-4 py-3 border-t border-gray-800 bg-gray-900/80">
+            <p className="text-center text-sm text-red-400/70">
+              You are muted by the room creator
+            </p>
+          </div>
+        ) : (
+          <MessageInput
+            onSend={handleSend}
+            onTyping={handleInputChange}
+            disabled={isNuking || !isConnected}
+          />
+        )}
       </div>
 
       {/* Nuke overlay */}

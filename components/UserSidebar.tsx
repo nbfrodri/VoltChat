@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { UserPresence } from "@/lib/types";
-import { Users, X, Crown } from "lucide-react";
+import { Users, X, Crown, Ban, VolumeX, Volume2 } from "lucide-react";
 
 interface UserSidebarProps {
   users: UserPresence[];
@@ -10,9 +10,25 @@ interface UserSidebarProps {
   creator: string | null;
   isOpen: boolean;
   onClose: () => void;
+  isCreator: boolean;
+  mutedUsers: Set<string>;
+  onKick: (target: string) => void;
+  onMute: (target: string, muted: boolean) => void;
 }
 
-export default function UserSidebar({ users, currentUsername, creator, isOpen, onClose }: UserSidebarProps) {
+export default function UserSidebar({
+  users,
+  currentUsername,
+  creator,
+  isOpen,
+  onClose,
+  isCreator,
+  mutedUsers,
+  onKick,
+  onMute,
+}: UserSidebarProps) {
+  const [confirmKick, setConfirmKick] = useState<string | null>(null);
+
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
@@ -22,6 +38,11 @@ export default function UserSidebar({ users, currentUsername, creator, isOpen, o
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
+
+  // Reset confirm state when sidebar closes
+  useEffect(() => {
+    if (!isOpen) setConfirmKick(null);
+  }, [isOpen]);
 
   return (
     <>
@@ -67,10 +88,13 @@ export default function UserSidebar({ users, currentUsername, creator, isOpen, o
           {users.map((user) => {
             const isSelf = user.user === currentUsername;
             const isRoomCreator = user.user === creator;
+            const isUserMuted = mutedUsers.has(user.user);
+            const isConfirmingKick = confirmKick === user.user;
+
             return (
               <li
                 key={user.user}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors"
+                className="group flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors"
               >
                 <div
                   className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
@@ -81,13 +105,66 @@ export default function UserSidebar({ users, currentUsername, creator, isOpen, o
                 >
                   {user.user.charAt(0).toUpperCase()}
                 </div>
-                <span className="text-sm text-gray-300 truncate flex-1">
-                  {user.user}
-                  {isSelf && (
-                    <span className="text-gray-600 text-xs ml-1">(you)</span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm text-gray-300 truncate block">
+                    {user.user}
+                    {isSelf && (
+                      <span className="text-gray-600 text-xs ml-1">(you)</span>
+                    )}
+                  </span>
+                  {isUserMuted && (
+                    <span className="text-xs text-red-400/70">muted</span>
                   )}
-                </span>
-                <div className="flex items-center gap-1.5 shrink-0">
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* Moderation buttons (creator only, not on self) */}
+                  {isCreator && !isSelf && !isRoomCreator && (
+                    <>
+                      {isConfirmingKick ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              onKick(user.user);
+                              setConfirmKick(null);
+                            }}
+                            className="text-[10px] text-red-400 hover:text-red-300 bg-red-900/30 px-1.5 py-0.5 rounded transition-colors"
+                            title="Confirm kick"
+                          >
+                            Kick?
+                          </button>
+                          <button
+                            onClick={() => setConfirmKick(null)}
+                            className="text-[10px] text-gray-500 hover:text-gray-300 px-1 py-0.5 transition-colors"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => onMute(user.user, !isUserMuted)}
+                            className="p-1 text-gray-600 hover:text-gray-300 md:opacity-0 md:group-hover:opacity-100 transition-all"
+                            aria-label={isUserMuted ? "Unmute user" : "Mute user"}
+                            title={isUserMuted ? "Unmute" : "Mute"}
+                          >
+                            {isUserMuted ? (
+                              <Volume2 className="h-3.5 w-3.5" />
+                            ) : (
+                              <VolumeX className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setConfirmKick(user.user)}
+                            className="p-1 text-gray-600 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 transition-all"
+                            aria-label="Kick user"
+                            title="Kick"
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
                   {isRoomCreator && (
                     <span title="Room creator">
                       <Crown className="h-3 w-3 text-yellow-500" />

@@ -14,6 +14,8 @@ export default function RoomPage({
   const { roomId } = use(params);
   const searchParams = useSearchParams();
   const visibility = (searchParams.get("v") || "private") as RoomVisibility;
+  const maxUsersParam = searchParams.get("max");
+  const maxUsers = maxUsersParam ? Number(maxUsersParam) : undefined;
   const [username, setUsername] = useState<string | null>(null);
 
   if (!username) {
@@ -29,6 +31,7 @@ export default function RoomPage({
       roomId={roomId}
       username={username}
       visibility={visibility}
+      initialMaxUsers={maxUsers}
     />
   );
 }

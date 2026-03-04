@@ -14,13 +14,14 @@ interface UseChatRoomOptions {
   roomId: string;
   username: string;
   visibility: RoomVisibility;
+  initialMaxUsers?: number;
 }
 
 // Max messages from a single user in a 5-second window
 const FLOOD_LIMIT = 20;
 const FLOOD_WINDOW = 5000;
 
-export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions) {
+export function useChatRoom({ roomId, username, visibility, initialMaxUsers }: UseChatRoomOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<UserPresence[]>([]);
   const [typingMap, setTypingMap] = useState<Record<string, TypingEntry>>({});
@@ -28,6 +29,11 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
   const [isConnected, setIsConnected] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
   const [creator, setCreator] = useState<string | null>(null);
+  const [maxUsers, setMaxUsers] = useState<number | undefined>(initialMaxUsers);
+  const [isRoomFull, setIsRoomFull] = useState(false);
+  const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
+  const [isMuted, setIsMuted] = useState(false);
+  const [isKicked, setIsKicked] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const lobbyChannelRef = useRef<RealtimeChannel | null>(null);
   const nukeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,6 +46,9 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
   const lastMessageSentRef = useRef(0);
   // Flood detection: track message timestamps per user
   const floodMapRef = useRef<Record<string, number[]>>({});
+  // Auto-delete: track peak user count
+  const peakUserCountRef = useRef(0);
+  const autoDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -101,6 +110,58 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
           return currentCreator;
         });
       })
+      .on("broadcast", { event: "kick" }, ({ payload }) => {
+        const { sender, target } = payload as { sender: string; target: string };
+        if (target !== username) return;
+        // Validate sender is creator
+        setCreator((currentCreator) => {
+          if (sender === currentCreator) {
+            setIsKicked(true);
+            supabase.removeChannel(channel);
+          }
+          return currentCreator;
+        });
+      })
+      .on("broadcast", { event: "mute" }, ({ payload }) => {
+        const { sender, target, muted } = payload as { sender: string; target: string; muted: boolean };
+        // Validate sender is creator
+        setCreator((currentCreator) => {
+          if (sender !== currentCreator) return currentCreator;
+          if (target === username) {
+            setIsMuted(muted);
+          }
+          setMutedUsers((prev) => {
+            const next = new Set(prev);
+            if (muted) next.add(target);
+            else next.delete(target);
+            return next;
+          });
+          if (muted) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                text: target === username ? "You have been muted by the room creator" : `${target} has been muted`,
+                user: "system",
+                timestamp: Date.now(),
+                type: "system",
+              },
+            ]);
+          } else {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                text: target === username ? "You have been unmuted" : `${target} has been unmuted`,
+                user: "system",
+                timestamp: Date.now(),
+                type: "system",
+              },
+            ]);
+          }
+          return currentCreator;
+        });
+      })
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<UserPresence>();
         const users = Object.values(state)
@@ -109,8 +170,43 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
             user: p.user,
             online_at: p.online_at,
             isCreator: p.isCreator,
+            maxUsers: p.maxUsers,
           }));
         setOnlineUsers(users);
+
+        // Read maxUsers from creator's presence (source of truth)
+        const creatorPresence = users.find((u) => u.isCreator);
+        if (creatorPresence) {
+          setMaxUsers(creatorPresence.maxUsers);
+        }
+
+        // Track peak user count for auto-delete
+        if (users.length > peakUserCountRef.current) {
+          peakUserCountRef.current = users.length;
+        }
+
+        // Auto-delete: if room was occupied (peak > 1) and now only self remains
+        if (users.length === 1 && peakUserCountRef.current > 1) {
+          if (!autoDeleteTimerRef.current) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                text: "Everyone left. The void reclaims this room...",
+                user: "system",
+                timestamp: Date.now(),
+                type: "system",
+              },
+            ]);
+            autoDeleteTimerRef.current = setTimeout(() => {
+              window.location.href = "/";
+            }, 3000);
+          }
+        } else if (users.length > 1 && autoDeleteTimerRef.current) {
+          // Someone rejoined — cancel auto-delete
+          clearTimeout(autoDeleteTimerRef.current);
+          autoDeleteTimerRef.current = null;
+        }
 
         // Creator is the single source of truth from presence metadata
         const creatorUser = users.find((u) => u.isCreator);
@@ -133,6 +229,7 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
                 creator: username,
                 userCount: users.length,
                 createdAt: new Date().toISOString(),
+                ...(creatorUser.maxUsers ? { maxUsers: creatorUser.maxUsers } : {}),
               });
             }
           }, 5000);
@@ -185,12 +282,22 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
           const existingCreator = existingUsers.find((u) => u.isCreator);
           const amCreator = !existingCreator && existingUsers.length === 0;
 
+          // Check if room is full (non-creator joining)
+          if (!amCreator && existingCreator?.maxUsers) {
+            if (existingUsers.length >= existingCreator.maxUsers) {
+              setIsRoomFull(true);
+              supabase.removeChannel(channel);
+              return;
+            }
+          }
+
           creatorResolvedRef.current = true;
 
           await channel.track({
             user: username,
             online_at: new Date().toISOString(),
             isCreator: amCreator,
+            ...(amCreator && initialMaxUsers ? { maxUsers: initialMaxUsers } : {}),
           });
 
           // If public + creator, join lobby
@@ -205,6 +312,7 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
                   creator: username,
                   userCount: 1,
                   createdAt: new Date().toISOString(),
+                  ...(initialMaxUsers ? { maxUsers: initialMaxUsers } : {}),
                 });
               }
             });
@@ -239,18 +347,19 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
     return () => {
       mounted = false;
       if (nukeTimeoutRef.current) clearTimeout(nukeTimeoutRef.current);
+      if (autoDeleteTimerRef.current) clearTimeout(autoDeleteTimerRef.current);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (sweepIntervalRef.current) clearInterval(sweepIntervalRef.current);
       if (lobbyDebounceRef.current) clearTimeout(lobbyDebounceRef.current);
       if (lobbyChannelRef.current) supabase.removeChannel(lobbyChannelRef.current);
       supabase.removeChannel(channel);
     };
-  }, [roomId, username, visibility]);
+  }, [roomId, username, visibility, initialMaxUsers]);
 
   const sendMessage = useCallback(
     (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || !channelRef.current) return;
+      if (!trimmed || !channelRef.current || isMuted) return;
 
       // Rate limit: min 250ms between messages
       const now = Date.now();
@@ -269,7 +378,7 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
         } satisfies ChatMessage,
       });
     },
-    [username]
+    [username, isMuted]
   );
 
   const sendTyping = useCallback(
@@ -327,6 +436,54 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
     });
   }, [isCreator, username]);
 
+  const updateMaxUsers = useCallback(
+    (newMax: number | undefined) => {
+      if (!isCreator || !channelRef.current) return;
+      setMaxUsers(newMax);
+      channelRef.current.track({
+        user: username,
+        online_at: new Date().toISOString(),
+        isCreator: true,
+        ...(newMax ? { maxUsers: newMax } : {}),
+      });
+    },
+    [isCreator, username]
+  );
+
+  const kickUser = useCallback(
+    (target: string) => {
+      if (!isCreator || !channelRef.current || target === username) return;
+      channelRef.current.send({
+        type: "broadcast",
+        event: "kick",
+        payload: { sender: username, target },
+      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          text: `${target} was kicked from the room`,
+          user: "system",
+          timestamp: Date.now(),
+          type: "system",
+        },
+      ]);
+    },
+    [isCreator, username]
+  );
+
+  const muteUser = useCallback(
+    (target: string, muted: boolean) => {
+      if (!isCreator || !channelRef.current || target === username) return;
+      channelRef.current.send({
+        type: "broadcast",
+        event: "mute",
+        payload: { sender: username, target, muted },
+      });
+    },
+    [isCreator, username]
+  );
+
   const leaveRoom = useCallback(() => {
     if (lobbyChannelRef.current) {
       supabase.removeChannel(lobbyChannelRef.current);
@@ -350,9 +507,17 @@ export function useChatRoom({ roomId, username, visibility }: UseChatRoomOptions
     isConnected,
     isCreator,
     creator,
+    maxUsers,
+    isRoomFull,
+    isMuted,
+    isKicked,
+    mutedUsers,
     sendMessage,
     sendTyping,
     nukeRoom,
     leaveRoom,
+    updateMaxUsers,
+    kickUser,
+    muteUser,
   };
 }
