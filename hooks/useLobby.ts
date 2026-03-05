@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import type { PublicRoom } from "@/lib/types";
+import type { PublicRoom, RoomTag } from "@/lib/types";
 
 interface LobbyPresence {
   roomId: string;
@@ -11,6 +11,11 @@ interface LobbyPresence {
   userCount: number;
   createdAt: string;
   maxUsers?: number;
+  tags?: RoomTag[];
+  encrypted?: boolean;
+  ttl?: number;
+  users?: string[];
+  roomCreatedAt?: number;
 }
 
 export function useLobby() {
@@ -23,21 +28,35 @@ export function useLobby() {
       config: { presence: { key: "lobby" } },
     });
 
+    function processState() {
+      const state = channel.presenceState<LobbyPresence>();
+      const roomMap = new Map<string, PublicRoom>();
+      for (const [, entries] of Object.entries(state)) {
+        const arr = entries as LobbyPresence[];
+        if (!arr.length) continue;
+        const p = arr[arr.length - 1];
+        if (!p.roomId) continue;
+        roomMap.set(p.roomId, {
+          roomId: p.roomId,
+          creator: p.creator,
+          userCount: p.userCount,
+          createdAt: p.createdAt,
+          maxUsers: p.maxUsers,
+          tags: p.tags,
+          encrypted: p.encrypted,
+          ttl: p.ttl,
+          users: p.users,
+          roomCreatedAt: p.roomCreatedAt,
+        });
+      }
+      setPublicRooms(Array.from(roomMap.values()));
+      setIsLoading(false);
+    }
+
     channel
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState<LobbyPresence>();
-        const rooms: PublicRoom[] = Object.values(state)
-          .flat()
-          .map((p) => ({
-            roomId: p.roomId,
-            creator: p.creator,
-            userCount: p.userCount,
-            createdAt: p.createdAt,
-            maxUsers: p.maxUsers,
-          }));
-        setPublicRooms(rooms);
-        setIsLoading(false);
-      })
+      .on("presence", { event: "sync" }, processState)
+      .on("presence", { event: "join" }, processState)
+      .on("presence", { event: "leave" }, processState)
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setIsLoading(false);

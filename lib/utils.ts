@@ -15,8 +15,8 @@ export function isValidRoomId(id: string): boolean {
   return ROOM_ID_REGEX.test(id);
 }
 
-// Allow letters, numbers, spaces, hyphens, underscores, periods
-const USERNAME_REGEX = /^[a-zA-Z0-9 _\-\.]+$/;
+// Allow letters, numbers, hyphens, underscores, periods (no spaces)
+const USERNAME_REGEX = /^[a-zA-Z0-9_\-\.]+$/;
 
 /** Strip control characters and zero-width chars from a string */
 function stripControlChars(s: string): string {
@@ -43,7 +43,7 @@ export function validateUsername(raw: string): { valid: true; name: string } | {
     return { valid: false, error: "That name is reserved." };
   }
   if (!USERNAME_REGEX.test(cleaned)) {
-    return { valid: false, error: "Name can only contain letters, numbers, spaces, hyphens, underscores, and periods." };
+    return { valid: false, error: "Name can only contain letters, numbers, hyphens, underscores, and periods (no spaces)." };
   }
   return { valid: true, name: cleaned };
 }
@@ -59,6 +59,65 @@ export function parseMaxUsers(raw: string | null): number | undefined {
 /** Validate visibility URL param */
 export function parseVisibility(raw: string | null): "public" | "private" {
   return raw === "public" ? "public" : "private";
+}
+
+// Stable username → color mapping for chat
+const USER_COLORS = [
+  "text-red-400",
+  "text-orange-400",
+  "text-amber-400",
+  "text-yellow-400",
+  "text-lime-400",
+  "text-green-400",
+  "text-emerald-400",
+  "text-teal-400",
+  "text-cyan-400",
+  "text-sky-400",
+  "text-blue-400",
+  "text-indigo-400",
+  "text-violet-400",
+  "text-purple-400",
+  "text-fuchsia-400",
+  "text-pink-400",
+  "text-rose-400",
+];
+
+// Avatar bg/text color pairs matching USER_COLORS
+const AVATAR_COLORS = [
+  "bg-red-900/60 text-red-300",
+  "bg-orange-900/60 text-orange-300",
+  "bg-amber-900/60 text-amber-300",
+  "bg-yellow-900/60 text-yellow-300",
+  "bg-lime-900/60 text-lime-300",
+  "bg-green-900/60 text-green-300",
+  "bg-emerald-900/60 text-emerald-300",
+  "bg-teal-900/60 text-teal-300",
+  "bg-cyan-900/60 text-cyan-300",
+  "bg-sky-900/60 text-sky-300",
+  "bg-blue-900/60 text-blue-300",
+  "bg-indigo-900/60 text-indigo-300",
+  "bg-violet-900/60 text-violet-300",
+  "bg-purple-900/60 text-purple-300",
+  "bg-fuchsia-900/60 text-fuchsia-300",
+  "bg-pink-900/60 text-pink-300",
+  "bg-rose-900/60 text-rose-300",
+];
+
+function getUserHash(username: string): number {
+  let hash = 0;
+  for (let i = 0; i < username.length; i++) {
+    hash = username.charCodeAt(i) + ((hash << 5) - hash);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+export function getUserColor(username: string): string {
+  return USER_COLORS[getUserHash(username) % USER_COLORS.length];
+}
+
+export function getUserAvatarColor(username: string): string {
+  return AVATAR_COLORS[getUserHash(username) % AVATAR_COLORS.length];
 }
 
 export function getMessageOpacity(index: number, total: number): number {
