@@ -214,6 +214,12 @@ const MessageInput = forwardRef<{ focus: () => void }, MessageInputProps>(
               onTyping?.(e.target.value);
               detectMention(e.target.value, e.target.selectionStart);
             }}
+            onFocus={() => {
+              // On mobile, scroll input into view after keyboard animation
+              setTimeout(() => {
+                textareaRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }, 350);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Type into the void..."
             maxLength={500}

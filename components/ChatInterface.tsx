@@ -79,6 +79,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
     spamCooldown,
   } = useChatRoom({ roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl });
 
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<{ focus: () => void }>(null);
@@ -119,6 +120,33 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
   const [nukePhase, setNukePhase] = useState(0);
   const nukeTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const isNearBottomRef = useRef(true);
+
+  // Mobile virtual keyboard: resize container to visual viewport height
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    // Prevent body scroll when keyboard opens on iOS
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
+
+    function handleResize() {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.style.height = `${vv!.height}px`;
+      }
+    }
+
+    vv.addEventListener("resize", handleResize);
+    return () => {
+      vv.removeEventListener("resize", handleResize);
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.height = "";
+    };
+  }, []);
 
   // TTL countdown display
   useEffect(() => {
@@ -367,7 +395,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
   const isCompact = density === "compact";
 
   return (
-    <div className={`flex h-dvh bg-gray-950 ${nukePhase === 1 ? "animate-shake animate-flash-red" : ""}`}>
+    <div ref={chatContainerRef} className={`flex h-dvh overflow-hidden bg-gray-950 ${nukePhase === 1 ? "animate-shake animate-flash-red" : ""}`}>
       {/* Sidebar */}
       <UserSidebar
         users={onlineUsers}

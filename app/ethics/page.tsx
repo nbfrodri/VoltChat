@@ -7,7 +7,7 @@ export default async function EthicsPage() {
   // Read the ethics.md file at build/request time
   let content = "";
   try {
-    content = await readFile(join(process.cwd(), "docs", "ethics.md"), "utf-8");
+    content = await readFile(join(process.cwd(), "content", "ethics.md"), "utf-8");
   } catch {
     content = "Ethics document not found.";
   }

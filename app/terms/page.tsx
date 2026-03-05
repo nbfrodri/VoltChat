@@ -6,7 +6,7 @@ import { join } from "path";
 export default async function TermsPage() {
   let content = "";
   try {
-    content = await readFile(join(process.cwd(), "docs", "terms-and-conditions.md"), "utf-8");
+    content = await readFile(join(process.cwd(), "content", "terms-and-conditions.md"), "utf-8");
   } catch {
     content = "Terms and conditions document not found.";
   }
