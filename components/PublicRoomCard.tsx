@@ -48,12 +48,25 @@ export default function PublicRoomCard({ room, onClick, onShare }: PublicRoomCar
       onClick={onClick}
       className="w-full text-left bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-emerald-700/30 rounded-xl p-4 transition-all hover:shadow-glow-green group"
     >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Hash className="h-4 w-4 text-emerald-400" />
-          <span className="text-base font-medium text-gray-100 group-hover:text-emerald-300 transition-colors">
-            {room.roomId}
-          </span>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Hash className="h-4 w-4 text-emerald-400 shrink-0" />
+          <div className="min-w-0 flex-1">
+            {room.roomName ? (
+              <>
+                <span className="text-sm sm:text-base font-medium text-gray-100 group-hover:text-emerald-300 transition-colors truncate block">
+                  {room.roomName}
+                </span>
+                <span className="text-[11px] text-gray-500 truncate block">
+                  {room.roomId}
+                </span>
+              </>
+            ) : (
+              <span className="text-sm sm:text-base font-medium text-gray-100 group-hover:text-emerald-300 transition-colors truncate block">
+                {room.roomId}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {onShare && (

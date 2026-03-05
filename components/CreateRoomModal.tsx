@@ -29,11 +29,12 @@ const TTL_OPTIONS = [
 
 interface CreateRoomModalProps {
   onClose: () => void;
-  onCreate: (visibility: RoomVisibility, maxUsers?: number, tags?: RoomTag[], encrypted?: boolean, ttl?: number) => void;
+  onCreate: (visibility: RoomVisibility, maxUsers?: number, tags?: RoomTag[], encrypted?: boolean, ttl?: number, roomName?: string) => void;
 }
 
 export default function CreateRoomModal({ onClose, onCreate }: CreateRoomModalProps) {
   const [visibility, setVisibility] = useState<RoomVisibility>("private");
+  const [roomName, setRoomName] = useState("");
   const [hasCapacity, setHasCapacity] = useState(false);
   const [maxUsers, setMaxUsers] = useState(10);
   const [encrypted, setEncrypted] = useState(false);
@@ -68,13 +69,27 @@ export default function CreateRoomModal({ onClose, onCreate }: CreateRoomModalPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl p-8 max-h-[90dvh] overflow-y-auto scrollbar-hide">
+      <div className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 max-h-[90dvh] overflow-y-auto scrollbar-hide">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-medium text-gray-100">Create Room</h2>
           <button onClick={onClose} className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
+        </div>
+
+        {/* Room name */}
+        <div className="mb-6">
+          <p className="text-sm text-gray-500 uppercase tracking-wider mb-3">Room name</p>
+          <input
+            type="text"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            placeholder="Give your room a name..."
+            maxLength={40}
+            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-colors"
+          />
+          <p className="text-xs text-gray-600 mt-1.5">Optional. Shown in the room header{visibility === "public" ? " and public room list" : ""}.</p>
         </div>
 
         {/* Visibility toggle */}
@@ -277,6 +292,7 @@ export default function CreateRoomModal({ onClose, onCreate }: CreateRoomModalPr
             tags.length > 0 ? tags : undefined,
             encrypted || undefined,
             ttl || undefined,
+            roomName.trim() || undefined,
           )}
           className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-4 py-3.5 text-base font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
         >

@@ -36,6 +36,8 @@ export interface UserPresence {
   lastActivity?: number;
   /** Room visibility set by creator */
   visibility?: RoomVisibility;
+  /** Room display name set by creator */
+  roomName?: string;
 }
 
 export interface TypingUser {
@@ -71,4 +73,5 @@ export interface PublicRoom {
   ttl?: number;
   users?: string[];
   roomCreatedAt?: number;
+  roomName?: string;
 }

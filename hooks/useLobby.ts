@@ -16,6 +16,7 @@ interface LobbyPresence {
   ttl?: number;
   users?: string[];
   roomCreatedAt?: number;
+  roomName?: string;
 }
 
 export function useLobby() {
@@ -47,6 +48,7 @@ export function useLobby() {
           ttl: p.ttl,
           users: p.users,
           roomCreatedAt: p.roomCreatedAt,
+          roomName: p.roomName,
         });
       }
       setPublicRooms(Array.from(roomMap.values()));

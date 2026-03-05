@@ -19,13 +19,14 @@ interface UseChatRoomOptions {
   initialTags?: RoomTag[];
   encryptionKey?: string | null;
   initialTtl?: number;
+  initialRoomName?: string;
 }
 
 // Max messages from a single user in a 5-second window
 const FLOOD_LIMIT = 20;
 const FLOOD_WINDOW = 5000;
 
-export function useChatRoom({ roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl }: UseChatRoomOptions) {
+export function useChatRoom({ roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl, initialRoomName }: UseChatRoomOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<UserPresence[]>([]);
   const [typingMap, setTypingMap] = useState<Record<string, TypingEntry>>({});
@@ -50,6 +51,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
   const [readReceipts, setReadReceipts] = useState<Record<string, string>>({});
   const [spamCooldown, setSpamCooldown] = useState(0);
   const [roomVisibility, setRoomVisibility] = useState<RoomVisibility>(visibility);
+  const [roomName, setRoomName] = useState<string | undefined>(initialRoomName);
   const ownMessageTimesRef = useRef<number[]>([]);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -73,6 +75,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
   const lastActivityRef = useRef<number>(Date.now());
   const afkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const roomNameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track room settings for creator succession
   const roomSettingsRef = useRef<{
     maxUsers?: number;
@@ -82,6 +85,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
     roomCreatedAt?: number;
     lobbyCreatedAt?: string;
     visibility?: RoomVisibility;
+    roomName?: string;
   }>({});
 
   // Import encryption key on mount
@@ -307,6 +311,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
             roomCreatedAt: p.roomCreatedAt,
             lastActivity: p.lastActivity,
             visibility: p.visibility,
+            roomName: p.roomName,
           }));
         setOnlineUsers(users);
 
@@ -354,6 +359,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           if (creatorPresence.ttl) setTtl(creatorPresence.ttl);
           if (creatorPresence.roomCreatedAt) setRoomCreatedAt(creatorPresence.roomCreatedAt);
           if (creatorPresence.visibility) setRoomVisibility(creatorPresence.visibility);
+          setRoomName(creatorPresence.roomName);
           // Cache room settings for potential creator succession
           roomSettingsRef.current = {
             maxUsers: creatorPresence.maxUsers,
@@ -363,6 +369,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
             roomCreatedAt: creatorPresence.roomCreatedAt,
             lobbyCreatedAt: roomSettingsRef.current.lobbyCreatedAt || creatorPresence.online_at,
             visibility: creatorPresence.visibility || roomSettingsRef.current.visibility,
+            roomName: creatorPresence.roomName,
           };
         }
 
@@ -389,6 +396,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
               ...(s.encrypted ? { encrypted: true } : {}),
               ...(s.ttl ? { ttl: s.ttl, roomCreatedAt: s.roomCreatedAt } : {}),
               visibility: cachedVisibility,
+              ...(s.roomName ? { roomName: s.roomName } : {}),
             });
             setRoomVisibility(cachedVisibility);
             setCreator(username);
@@ -420,6 +428,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
                     ...(s.tags?.length ? { tags: s.tags } : {}),
                     ...(s.encrypted ? { encrypted: true } : {}),
                     ...(s.ttl ? { ttl: s.ttl, roomCreatedAt: s.roomCreatedAt } : {}),
+                    ...(s.roomName ? { roomName: s.roomName } : {}),
                   });
                 }
               });
@@ -449,6 +458,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
                 ...(creatorUser.tags?.length ? { tags: creatorUser.tags } : {}),
                 ...(creatorUser.encrypted ? { encrypted: true } : {}),
                 ...(creatorUser.ttl ? { ttl: creatorUser.ttl, roomCreatedAt: creatorUser.roomCreatedAt } : {}),
+                ...(creatorUser.roomName ? { roomName: creatorUser.roomName } : {}),
               });
             }
           }, 1500);
@@ -498,6 +508,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
             ...(amCreator && encryptionKey ? { encrypted: true } : {}),
             ...(amCreator && initialTtl ? { ttl: initialTtl, roomCreatedAt: createdAt } : {}),
             ...(amCreator ? { visibility } : {}),
+            ...(amCreator && initialRoomName ? { roomName: initialRoomName } : {}),
           });
 
           if (visibility === "public" && amCreator && mounted) {
@@ -518,6 +529,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
                   ...(initialTags?.length ? { tags: initialTags } : {}),
                   ...(encryptionKey ? { encrypted: true } : {}),
                   ...(initialTtl ? { ttl: initialTtl, roomCreatedAt: createdAt } : {}),
+                  ...(initialRoomName ? { roomName: initialRoomName } : {}),
                 });
               }
             });
@@ -554,6 +566,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
       if (maxUsersDebounceRef.current) clearTimeout(maxUsersDebounceRef.current);
       if (tagsDebounceRef.current) clearTimeout(tagsDebounceRef.current);
       if (visibilityDebounceRef.current) clearTimeout(visibilityDebounceRef.current);
+      if (roomNameDebounceRef.current) clearTimeout(roomNameDebounceRef.current);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (sweepIntervalRef.current) clearInterval(sweepIntervalRef.current);
       if (lobbyDebounceRef.current) clearTimeout(lobbyDebounceRef.current);
@@ -567,7 +580,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
       channel.untrack();
       supabase.removeChannel(channel);
     };
-  }, [roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl]);
+  }, [roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl, initialRoomName]);
 
   // Vote kick resolution
   useEffect(() => {
@@ -711,9 +724,10 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
         ...(isEncrypted ? { encrypted: true } : {}),
         ...(isCreator && ttl ? { ttl, roomCreatedAt } : {}),
         ...(isCreator ? { visibility: roomVisibility } : {}),
+        ...(isCreator && roomName ? { roomName } : {}),
       });
     }, 2000);
-  }, [username, isCreator, maxUsers, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility]);
+  }, [username, isCreator, maxUsers, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility, roomName]);
 
   // Listen for user interactions to reset AFK (scroll, mouse, keyboard, touch)
   useEffect(() => {
@@ -910,10 +924,11 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           ...(isEncrypted ? { encrypted: true } : {}),
           ...(ttl ? { ttl, roomCreatedAt } : {}),
           visibility: roomVisibility,
+          ...(roomName ? { roomName } : {}),
         });
       }, 300);
     },
-    [isCreator, username, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility]
+    [isCreator, username, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility, roomName]
   );
 
   const updateTags = useCallback(
@@ -931,10 +946,11 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           ...(isEncrypted ? { encrypted: true } : {}),
           ...(ttl ? { ttl, roomCreatedAt } : {}),
           visibility: roomVisibility,
+          ...(roomName ? { roomName } : {}),
         });
       }, 300);
     },
-    [isCreator, username, maxUsers, isEncrypted, ttl, roomCreatedAt, roomVisibility]
+    [isCreator, username, maxUsers, isEncrypted, ttl, roomCreatedAt, roomVisibility, roomName]
   );
 
   const updateVisibility = useCallback(
@@ -965,6 +981,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           ...(isEncrypted ? { encrypted: true } : {}),
           ...(ttl ? { ttl, roomCreatedAt } : {}),
           visibility: newVisibility,
+          ...(roomName ? { roomName } : {}),
         });
 
         if (newVisibility === "private") {
@@ -996,6 +1013,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
                   ...(currentTags.length ? { tags: currentTags } : {}),
                   ...(isEncrypted ? { encrypted: true } : {}),
                   ...(ttl ? { ttl, roomCreatedAt } : {}),
+                  ...(roomName ? { roomName } : {}),
                 });
               }
             });
@@ -1009,6 +1027,47 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           event: "system_msg",
           payload: { text: `Room is now ${newVisibility}` },
         });
+      }, 300);
+    },
+    [isCreator, username, maxUsers, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility, roomId, roomName]
+  );
+
+  const updateRoomName = useCallback(
+    (newName: string | undefined) => {
+      if (!isCreator || !channelRef.current) return;
+      const sanitized = newName?.slice(0, 40) || undefined;
+      setRoomName(sanitized);
+      roomSettingsRef.current.roomName = sanitized;
+      if (roomNameDebounceRef.current) clearTimeout(roomNameDebounceRef.current);
+      roomNameDebounceRef.current = setTimeout(() => {
+        channelRef.current?.track({
+          user: username,
+          online_at: new Date().toISOString(),
+          isCreator: true,
+          ...(maxUsers ? { maxUsers } : {}),
+          ...(roomTags.length ? { tags: roomTags } : {}),
+          ...(isEncrypted ? { encrypted: true } : {}),
+          ...(ttl ? { ttl, roomCreatedAt } : {}),
+          visibility: roomVisibility,
+          ...(sanitized ? { roomName: sanitized } : {}),
+        });
+        // Update lobby if public
+        if (roomVisibility === "public" && lobbyChannelRef.current) {
+          const state = channelRef.current?.presenceState<UserPresence>();
+          const users = state ? Object.values(state).flat() : [];
+          lobbyChannelRef.current.track({
+            roomId,
+            creator: username,
+            userCount: users.length || 1,
+            users: users.length ? users.map((u) => u.user) : [username],
+            createdAt: roomSettingsRef.current.lobbyCreatedAt || new Date().toISOString(),
+            ...(maxUsers ? { maxUsers } : {}),
+            ...(roomTags.length ? { tags: roomTags } : {}),
+            ...(isEncrypted ? { encrypted: true } : {}),
+            ...(ttl ? { ttl, roomCreatedAt } : {}),
+            ...(sanitized ? { roomName: sanitized } : {}),
+          });
+        }
       }, 300);
     },
     [isCreator, username, maxUsers, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility, roomId]
@@ -1163,6 +1222,8 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
     updateTags,
     roomVisibility,
     updateVisibility,
+    roomName,
+    updateRoomName,
     activeVoteKick,
     toggleReaction,
     kickUser,

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Hash, Bomb, Menu, ChevronDown, LogOut, Globe, Lock, Users, Vote, Palette,
   Settings, X, UserX, Share2, Tags, HelpCircle, MoreVertical,
-  AlignJustify, List, Shield, Flag, Timer, ShieldCheck, ZoomIn,
+  AlignJustify, List, Shield, Flag, Timer, ShieldCheck, ZoomIn, Pencil, Check,
 } from "lucide-react";
 import { useChatRoom } from "@/hooks/useChatRoom";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -34,11 +34,12 @@ interface ChatInterfaceProps {
   initialTags?: RoomTag[];
   encryptionKey?: string | null;
   initialTtl?: number;
+  initialRoomName?: string;
 }
 
 type Density = "comfortable" | "compact";
 
-export default function ChatInterface({ roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl }: ChatInterfaceProps) {
+export default function ChatInterface({ roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl, initialRoomName }: ChatInterfaceProps) {
   const router = useRouter();
   const {
     messages,
@@ -68,6 +69,8 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
     updateTags,
     roomVisibility,
     updateVisibility,
+    roomName,
+    updateRoomName,
     activeVoteKick,
     toggleReaction,
     kickUser,
@@ -77,7 +80,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
     readReceipts,
     markAsRead,
     spamCooldown,
-  } = useChatRoom({ roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl });
+  } = useChatRoom({ roomId, username, visibility, initialMaxUsers, initialTags, encryptionKey, initialTtl, initialRoomName });
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -107,6 +110,9 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
   const [theme, setTheme] = useState<ChatTheme>(() => getThemeForRoom(roomId));
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [showZoomPopover, setShowZoomPopover] = useState(false);
+  const [editingRoomName, setEditingRoomName] = useState(false);
+  const [showRoomNameModal, setShowRoomNameModal] = useState(false);
+  const [roomNameDraft, setRoomNameDraft] = useState("");
   const [chatZoom, setChatZoom] = useState<number>(() => {
     if (typeof window === "undefined") return 100;
     const saved = localStorage.getItem("voltchat-chat-zoom");
@@ -435,7 +441,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
           <div className={`h-0.5 transition-colors ${isConnected ? theme.connectionBar : "bg-yellow-500 animate-pulse"}`} />
 
           <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
               <button
                 onClick={() => { setSidebarOpen(true); hapticTap(); }}
                 className="md:hidden p-2 text-gray-400 hover:text-gray-200 transition-colors rounded-lg"
@@ -448,29 +454,89 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
                   <Globe className={`h-4 w-4 ${theme.headerAccent}`} />
                 </span>
               ) : (
-                <>
-                  <Hash className="h-5 w-5 text-gray-600 shrink-0" />
-                  <span className={`text-base ${theme.headerAccent} truncate font-medium`}>{roomId}</span>
-                  <span title="Private room" className="shrink-0">
-                    <Lock className="h-4 w-4 text-gray-500" />
-                  </span>
-                </>
+                <span title="Private room" className="shrink-0">
+                  <Lock className="h-4 w-4 text-gray-500" />
+                </span>
               )}
+              {/* Desktop inline edit */}
+              {editingRoomName ? (
+                <form
+                  className="hidden md:flex items-center gap-1.5 min-w-0 flex-1"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    updateRoomName(roomNameDraft.trim() || undefined);
+                    setEditingRoomName(false);
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={roomNameDraft}
+                    onChange={(e) => setRoomNameDraft(e.target.value)}
+                    maxLength={40}
+                    autoFocus
+                    placeholder="Room name..."
+                    className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 min-w-0 flex-1 max-w-48"
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setEditingRoomName(false);
+                    }}
+                    onBlur={() => {
+                      updateRoomName(roomNameDraft.trim() || undefined);
+                      setEditingRoomName(false);
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    className="p-1 text-emerald-400 hover:text-emerald-300 transition-colors shrink-0"
+                    aria-label="Save room name"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                </form>
+              ) : null}
+              {/* Room name display (hidden on desktop when inline editing) */}
+              <div className={`flex items-center gap-1.5 min-w-0 ${editingRoomName ? "md:hidden" : ""}`}>
+                {roomName ? (
+                  <>
+                    <span className={`text-sm md:text-base ${theme.headerAccent} truncate font-medium`}>{roomName}</span>
+                    <span className="text-xs text-gray-600 shrink-0 hidden sm:inline">#{roomId}</span>
+                  </>
+                ) : (
+                  <>
+                    <Hash className="h-5 w-5 text-gray-600 shrink-0" />
+                    <span className={`text-sm md:text-base ${theme.headerAccent} truncate font-medium`}>{roomId}</span>
+                  </>
+                )}
+                {isCreator && (
+                  <button
+                    onClick={() => {
+                      setRoomNameDraft(roomName || "");
+                      setEditingRoomName(true);
+                      hapticTap();
+                    }}
+                    className="hidden md:flex p-1 text-gray-600 hover:text-gray-400 transition-colors shrink-0"
+                    aria-label="Edit room name"
+                    title="Edit room name"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               {isEncrypted && (
                 <span title="End-to-end encrypted" className="shrink-0">
                   <ShieldCheck className={`h-4 w-4 ${theme.headerIcon}`} />
                 </span>
               )}
-              <span className="flex items-center gap-1.5 text-sm text-gray-400 shrink-0">
-                <Users className="h-4 w-4" />
+              <span className="flex items-center gap-1 md:gap-1.5 text-xs md:text-sm text-gray-400 shrink-0">
+                <Users className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 {onlineUsers.length}{maxUsers ? `/${maxUsers}` : ""}
               </span>
               {ttlRemaining && (
                 <span className={`flex items-center gap-1 text-xs shrink-0 ${
                   ttlRemaining.includes("s") && !ttlRemaining.includes("m") ? "text-red-400" : "text-gray-500"
                 }`}>
-                  <Timer className="h-3.5 w-3.5" />
-                  {ttlRemaining}
+                  <Timer className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                  <span className="hidden sm:inline">{ttlRemaining}</span>
+                  <span className="sm:hidden">{ttlRemaining.split(" ")[0]}</span>
                 </span>
               )}
             </div>
@@ -990,6 +1056,19 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
             {isCreator && (
               <button
                 onClick={() => {
+                  setRoomNameDraft(roomName || "");
+                  setShowRoomNameModal(true);
+                  setShowMoreMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 active:bg-gray-700 rounded-xl transition-colors"
+              >
+                <Pencil className="h-5 w-5" />
+                {roomName ? "Edit room name" : "Set room name"}
+              </button>
+            )}
+            {isCreator && (
+              <button
+                onClick={() => {
                   setHasLimit(!!maxUsers);
                   setCapacityInput(maxUsers || Math.max(10, onlineUsers.length));
                   setShowSettings(true);
@@ -1001,6 +1080,57 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
                 Room settings
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile room name modal */}
+      {showRoomNameModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowRoomNameModal(false); }}
+        >
+          <div className="w-full max-w-xs bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium text-gray-200">Room Name</span>
+              <button onClick={() => setShowRoomNameModal(false)} className="p-1 text-gray-500 hover:text-gray-300">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={roomNameDraft}
+              onChange={(e) => setRoomNameDraft(e.target.value)}
+              maxLength={40}
+              autoFocus
+              placeholder="Give your room a name..."
+              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-colors mb-1.5"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  updateRoomName(roomNameDraft.trim() || undefined);
+                  setShowRoomNameModal(false);
+                }
+              }}
+            />
+            <p className="text-[11px] text-gray-600 mb-4">Max 40 characters. Leave empty to remove.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowRoomNameModal(false)}
+                className="flex-1 px-3 py-2.5 text-sm text-gray-400 hover:text-gray-200 bg-gray-900 border border-gray-700 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  updateRoomName(roomNameDraft.trim() || undefined);
+                  setShowRoomNameModal(false);
+                }}
+                className="flex-1 px-3 py-2.5 text-sm text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl font-medium transition-colors"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

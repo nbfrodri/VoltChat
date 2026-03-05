@@ -51,12 +51,13 @@ export default function LandingPage() {
     );
   }, [publicRooms, activeTagFilter]);
 
-  async function handleCreateRoom(visibility: RoomVisibility, maxUsers?: number, tags?: RoomTag[], encrypted?: boolean, ttl?: number) {
+  async function handleCreateRoom(visibility: RoomVisibility, maxUsers?: number, tags?: RoomTag[], encrypted?: boolean, ttl?: number, roomName?: string) {
     const roomId = generateRoomId();
     const params = new URLSearchParams({ v: visibility });
     if (maxUsers) params.set("max", String(maxUsers));
     if (tags?.length) params.set("tags", JSON.stringify(tags));
     if (ttl) params.set("ttl", String(ttl));
+    if (roomName) params.set("name", roomName);
 
     let hashFragment = "";
     if (encrypted) {
@@ -340,9 +341,9 @@ export default function LandingPage() {
       {showCreateModal && (
         <CreateRoomModal
           onClose={() => setShowCreateModal(false)}
-          onCreate={(vis, max, tags, encrypted, ttl) => {
+          onCreate={(vis, max, tags, encrypted, ttl, roomName) => {
             setShowCreateModal(false);
-            handleCreateRoom(vis, max, tags, encrypted, ttl);
+            handleCreateRoom(vis, max, tags, encrypted, ttl, roomName);
           }}
         />
       )}

@@ -44,6 +44,10 @@ export default function RoomPage({
   const maxUsers = parseMaxUsers(searchParams.get("max"));
   const initialTags = useMemo(() => parseTags(searchParams.get("tags")), [searchParams]);
   const initialTtl = useMemo(() => parseTtl(searchParams.get("ttl")), [searchParams]);
+  const initialRoomName = useMemo(() => {
+    const raw = searchParams.get("name");
+    return raw ? raw.slice(0, 40) : undefined;
+  }, [searchParams]);
   const isE2ee = searchParams.get("e2ee") === "1";
   const [username, setUsername] = useState<string | null>(null);
   const [encryptionKey, setEncryptionKey] = useState<string | null>(null);
@@ -90,6 +94,7 @@ export default function RoomPage({
       initialTags={initialTags}
       encryptionKey={encryptionKey}
       initialTtl={initialTtl}
+      initialRoomName={initialRoomName}
     />
   );
 }

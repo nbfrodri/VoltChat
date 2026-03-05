@@ -50,6 +50,7 @@ User A  ──→  Supabase WebSocket  ──→  User B
 | **AFK detection** | 5min AFK warning, 15min auto-kick with system message |
 | **Creator succession** | When the creator leaves, the oldest user auto-promotes with full powers and room settings |
 | **Room themes** | 6 color themes (Emerald, Ocean, Violet, Rose, Amber, Cyan) affecting 25+ UI elements |
+| **Room naming** | Optional display name for rooms, editable by creator, shown in header and public room list |
 | **Room tags** | Custom tags for public rooms with colors and emoji |
 | **Room TTL** | Optional room auto-expiry (30min to 24h) with live countdown |
 | **Room capacity** | Optional user limit per room, editable by creator |
@@ -150,7 +151,7 @@ app/
 
 components/
 ├── LandingPage.tsx        Create/join room + bookmarks + public rooms
-├── CreateRoomModal.tsx    Room creation (visibility, encryption, TTL, tags, capacity)
+├── CreateRoomModal.tsx    Room creation (name, visibility, encryption, TTL, tags, capacity)
 ├── JoinModal.tsx          Username capture with validation (no spaces)
 ├── ChatInterface.tsx      Main chat orchestrator (theme-aware, silence support)
 ├── MessageBubble.tsx      Message bubble + swipe-to-reply + inline timestamp
@@ -159,7 +160,7 @@ components/
 ├── TypingIndicator.tsx    "X is typing..." with themed dots
 ├── NukeOverlay.tsx        Room destruction animation
 ├── SystemMessage.tsx      System messages with colored usernames
-├── PublicRoomCard.tsx     Public room card with live TTL countdown
+├── PublicRoomCard.tsx     Public room card with room name + live TTL countdown
 ├── ShareModal.tsx         Share room (link, QR, social)
 ├── ReportModal.tsx        Abuse report with auto-terminate
 ├── TagBadge.tsx           Tag pill badge component
@@ -169,7 +170,7 @@ components/
 └── SafetyDisclaimer.tsx   First-visit safety modal
 
 hooks/
-├── useChatRoom.ts         Core realtime (broadcast, presence, E2EE, reactions, vote kick, TTL, succession, AFK, read receipts)
+├── useChatRoom.ts         Core realtime (broadcast, presence, E2EE, reactions, vote kick, TTL, succession, AFK, read receipts, room naming)
 ├── useLobby.ts            Public room discovery via lobby presence (join/leave/sync)
 ├── useBookmarks.ts        Room bookmark management
 ├── useKeyboardShortcuts.ts Keyboard shortcut handler
