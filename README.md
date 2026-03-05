@@ -172,6 +172,12 @@ Designed to run within Supabase and Vercel free tier limits:
 
 ---
 
+## Built With
+
+This project was built with the help of **Claude Opus 4.6** (by Anthropic) for educational purposes, for fun, and as a learning experience.
+
+---
+
 ## License
 
 MIT
