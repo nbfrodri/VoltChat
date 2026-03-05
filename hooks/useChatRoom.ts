@@ -49,6 +49,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
   const [activeVoteKick, setActiveVoteKick] = useState<VoteKick | null>(null);
   const [readReceipts, setReadReceipts] = useState<Record<string, string>>({});
   const [spamCooldown, setSpamCooldown] = useState(0);
+  const [roomVisibility, setRoomVisibility] = useState<RoomVisibility>(visibility);
   const ownMessageTimesRef = useRef<number[]>([]);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -64,6 +65,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
   const floodMapRef = useRef<Record<string, number[]>>({});
   const maxUsersDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tagsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visibilityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const knownUsersRef = useRef<Set<string>>(new Set());
   const kickedUsersRef = useRef<Set<string>>(new Set());
   const cryptoKeyRef = useRef<CryptoKey | null>(null);
@@ -351,6 +353,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           setIsEncrypted(!!creatorPresence.encrypted);
           if (creatorPresence.ttl) setTtl(creatorPresence.ttl);
           if (creatorPresence.roomCreatedAt) setRoomCreatedAt(creatorPresence.roomCreatedAt);
+          if (creatorPresence.visibility) setRoomVisibility(creatorPresence.visibility);
           // Cache room settings for potential creator succession
           roomSettingsRef.current = {
             maxUsers: creatorPresence.maxUsers,
@@ -376,7 +379,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           if (oldest.user === username) {
             // I'm the oldest — promote myself using cached room settings
             const s = roomSettingsRef.current;
-            const roomVisibility = s.visibility || visibility;
+            const cachedVisibility = s.visibility || visibility;
             channel.track({
               user: username,
               online_at: oldest.online_at,
@@ -385,8 +388,9 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
               ...(s.tags?.length ? { tags: s.tags } : {}),
               ...(s.encrypted ? { encrypted: true } : {}),
               ...(s.ttl ? { ttl: s.ttl, roomCreatedAt: s.roomCreatedAt } : {}),
-              visibility: roomVisibility,
+              visibility: cachedVisibility,
             });
+            setRoomVisibility(cachedVisibility);
             setCreator(username);
             setIsCreator(true);
             setMessages((prev) => [
@@ -400,7 +404,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
               },
             ]);
             // For public rooms, take over lobby tracking
-            if (roomVisibility === "public" && !lobbyChannelRef.current) {
+            if (cachedVisibility === "public" && !lobbyChannelRef.current) {
               const lobbyChannel = supabase.channel("lobby", {
                 config: { presence: { key: roomId } },
               });
@@ -549,6 +553,7 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
       if (nukeTimeoutRef.current) clearTimeout(nukeTimeoutRef.current);
       if (maxUsersDebounceRef.current) clearTimeout(maxUsersDebounceRef.current);
       if (tagsDebounceRef.current) clearTimeout(tagsDebounceRef.current);
+      if (visibilityDebounceRef.current) clearTimeout(visibilityDebounceRef.current);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (sweepIntervalRef.current) clearInterval(sweepIntervalRef.current);
       if (lobbyDebounceRef.current) clearTimeout(lobbyDebounceRef.current);
@@ -705,9 +710,10 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
         ...(isCreator && roomTags.length ? { tags: roomTags } : {}),
         ...(isEncrypted ? { encrypted: true } : {}),
         ...(isCreator && ttl ? { ttl, roomCreatedAt } : {}),
+        ...(isCreator ? { visibility: roomVisibility } : {}),
       });
     }, 2000);
-  }, [username, isCreator, maxUsers, roomTags, isEncrypted, ttl, roomCreatedAt]);
+  }, [username, isCreator, maxUsers, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility]);
 
   // Listen for user interactions to reset AFK (scroll, mouse, keyboard, touch)
   useEffect(() => {
@@ -903,10 +909,11 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           ...(roomTags.length ? { tags: roomTags } : {}),
           ...(isEncrypted ? { encrypted: true } : {}),
           ...(ttl ? { ttl, roomCreatedAt } : {}),
+          visibility: roomVisibility,
         });
       }, 300);
     },
-    [isCreator, username, roomTags, isEncrypted, ttl, roomCreatedAt]
+    [isCreator, username, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility]
   );
 
   const updateTags = useCallback(
@@ -923,10 +930,88 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
           ...(tags.length ? { tags } : {}),
           ...(isEncrypted ? { encrypted: true } : {}),
           ...(ttl ? { ttl, roomCreatedAt } : {}),
+          visibility: roomVisibility,
         });
       }, 300);
     },
-    [isCreator, username, maxUsers, isEncrypted, ttl, roomCreatedAt]
+    [isCreator, username, maxUsers, isEncrypted, ttl, roomCreatedAt, roomVisibility]
+  );
+
+  const updateVisibility = useCallback(
+    (newVisibility: RoomVisibility) => {
+      if (!isCreator || !channelRef.current) return;
+      // E2EE rooms cannot become public
+      if (newVisibility === "public" && isEncrypted) return;
+      if (newVisibility === roomVisibility) return;
+
+      setRoomVisibility(newVisibility);
+
+      // Clear tags when going private (tags are public-only)
+      let currentTags = roomTags;
+      if (newVisibility === "private" && roomTags.length > 0) {
+        currentTags = [];
+        setRoomTags([]);
+      }
+
+      if (visibilityDebounceRef.current) clearTimeout(visibilityDebounceRef.current);
+      visibilityDebounceRef.current = setTimeout(() => {
+        // Re-track creator presence with new visibility
+        channelRef.current?.track({
+          user: username,
+          online_at: new Date().toISOString(),
+          isCreator: true,
+          ...(maxUsers ? { maxUsers } : {}),
+          ...(currentTags.length ? { tags: currentTags } : {}),
+          ...(isEncrypted ? { encrypted: true } : {}),
+          ...(ttl ? { ttl, roomCreatedAt } : {}),
+          visibility: newVisibility,
+        });
+
+        if (newVisibility === "private") {
+          // Public → Private: remove from lobby
+          if (lobbyChannelRef.current) {
+            lobbyChannelRef.current.untrack();
+            supabase.removeChannel(lobbyChannelRef.current);
+            lobbyChannelRef.current = null;
+          }
+        } else {
+          // Private → Public: create lobby channel
+          if (!lobbyChannelRef.current) {
+            const lobbyCreatedAt = roomSettingsRef.current.lobbyCreatedAt || new Date().toISOString();
+            roomSettingsRef.current.lobbyCreatedAt = lobbyCreatedAt;
+            const lobbyChannel = supabase.channel("lobby", {
+              config: { presence: { key: roomId } },
+            });
+            lobbyChannel.subscribe(async (lobbyStatus) => {
+              if (lobbyStatus === "SUBSCRIBED") {
+                const state = channelRef.current?.presenceState<UserPresence>();
+                const users = state ? Object.values(state).flat() : [];
+                await lobbyChannel.track({
+                  roomId,
+                  creator: username,
+                  userCount: users.length || 1,
+                  users: users.length ? users.map((u) => u.user) : [username],
+                  createdAt: lobbyCreatedAt,
+                  ...(maxUsers ? { maxUsers } : {}),
+                  ...(currentTags.length ? { tags: currentTags } : {}),
+                  ...(isEncrypted ? { encrypted: true } : {}),
+                  ...(ttl ? { ttl, roomCreatedAt } : {}),
+                });
+              }
+            });
+            lobbyChannelRef.current = lobbyChannel;
+          }
+        }
+
+        // Broadcast system message
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "system_msg",
+          payload: { text: `Room is now ${newVisibility}` },
+        });
+      }, 300);
+    },
+    [isCreator, username, maxUsers, roomTags, isEncrypted, ttl, roomCreatedAt, roomVisibility, roomId]
   );
 
   const toggleReaction = useCallback(
@@ -1076,6 +1161,8 @@ export function useChatRoom({ roomId, username, visibility, initialMaxUsers, ini
     leaveRoom,
     updateMaxUsers,
     updateTags,
+    roomVisibility,
+    updateVisibility,
     activeVoteKick,
     toggleReaction,
     kickUser,

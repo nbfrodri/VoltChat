@@ -34,7 +34,7 @@ User A  ──→  Supabase WebSocket  ──→  User B
 | Feature | Description |
 |---------|-------------|
 | **Ephemeral messaging** | Messages exist only in connected clients' memory |
-| **Public & Private rooms** | Public rooms are discoverable; private rooms are link-only |
+| **Public & Private rooms** | Public rooms are discoverable; private rooms are link-only. Creator can toggle at runtime |
 | **End-to-end encryption** | Optional AES-GCM 256-bit E2EE for private rooms (key in URL fragment, never touches server) |
 | **Presence tracking** | See who's online in real-time with colored usernames |
 | **Typing indicators** | "X is typing..." with animated dots |

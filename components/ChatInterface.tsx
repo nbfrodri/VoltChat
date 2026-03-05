@@ -66,6 +66,8 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
     leaveRoom,
     updateMaxUsers,
     updateTags,
+    roomVisibility,
+    updateVisibility,
     activeVoteKick,
     toggleReaction,
     kickUser,
@@ -407,7 +409,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
               >
                 <Menu className="h-5 w-5" />
               </button>
-              {visibility === "public" ? (
+              {roomVisibility === "public" ? (
                 <span title="Public room" className="shrink-0">
                   <Globe className={`h-4 w-4 ${theme.headerAccent}`} />
                 </span>
@@ -467,7 +469,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
               >
                 <Flag className="h-5 w-5" />
               </button>
-              {isCreator && visibility === "public" && (
+              {isCreator && roomVisibility === "public" && (
                 <button
                   onClick={() => setShowTagManager(true)}
                   className="hidden md:flex p-2 text-gray-400 hover:text-gray-200 transition-colors rounded-lg"
@@ -764,11 +766,38 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
         >
           <div className="w-full max-w-sm bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-lg">
             <div className="flex items-center justify-between mb-5">
-              <span className="text-sm text-gray-300 uppercase tracking-wider font-medium">User limit</span>
+              <span className="text-sm text-gray-300 uppercase tracking-wider font-medium">Room settings</span>
               <button onClick={() => setShowSettings(false)} className="p-1 text-gray-500 hover:text-gray-300">
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {/* Visibility toggle — hidden for E2EE rooms */}
+            {!isEncrypted && (
+              <div className="mb-5 pb-5 border-b border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {roomVisibility === "public" ? (
+                      <Globe className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Lock className="h-4 w-4 text-gray-400" />
+                    )}
+                    <span className="text-base text-gray-200">{roomVisibility === "public" ? "Public" : "Private"}</span>
+                  </div>
+                  <button
+                    onClick={() => updateVisibility(roomVisibility === "public" ? "private" : "public")}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${roomVisibility === "public" ? theme.toggleBg : "bg-gray-700"}`}
+                    aria-label="Toggle room visibility"
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${roomVisibility === "public" ? "translate-x-5" : ""}`} />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">
+                  {roomVisibility === "public" ? "Room appears in the public lobby" : "Room is link-only, hidden from lobby"}
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between mb-5">
               <span className="text-base text-gray-200">Enable limit</span>
               <button
@@ -915,7 +944,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
               <Flag className="h-5 w-5" />
               Report room
             </button>
-            {isCreator && visibility === "public" && (
+            {isCreator && roomVisibility === "public" && (
               <button
                 onClick={() => { setShowTagManager(true); setShowMoreMenu(false); }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 active:bg-gray-700 rounded-xl transition-colors"
