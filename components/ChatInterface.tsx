@@ -121,7 +121,7 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
   const nukeTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const isNearBottomRef = useRef(true);
 
-  // Mobile virtual keyboard: resize container to visual viewport height
+  // Mobile virtual keyboard: resize and reposition container to visual viewport
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -132,15 +132,18 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
     document.body.style.width = "100%";
     document.body.style.height = "100%";
 
-    function handleResize() {
+    function update() {
       if (chatContainerRef.current) {
         chatContainerRef.current.style.height = `${vv!.height}px`;
+        chatContainerRef.current.style.transform = `translateY(${vv!.offsetTop}px)`;
       }
     }
 
-    vv.addEventListener("resize", handleResize);
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
     return () => {
-      vv.removeEventListener("resize", handleResize);
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
       document.body.style.overflow = "";
       document.body.style.position = "";
       document.body.style.width = "";
@@ -229,7 +232,9 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
     const lastMessage = messages[messages.length - 1];
     const isOwnMessage = lastMessage.user === username;
     if (nearBottom || isOwnMessage) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      // Use scrollTop instead of scrollIntoView to avoid the browser
+      // scrolling the whole page on mobile (which pushes the input away from the keyboard)
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       // Mark last non-system message as read (only if window is visible and focused)
       if (document.visibilityState === "visible" && document.hasFocus()) {
         const lastReadable = [...messages].reverse().find((m) => m.type !== "system");
@@ -250,7 +255,8 @@ export default function ChatInterface({ roomId, username, visibility, initialMax
   }
 
   function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }
 
   function handleLeaveRoom() {

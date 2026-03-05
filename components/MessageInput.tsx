@@ -215,10 +215,7 @@ const MessageInput = forwardRef<{ focus: () => void }, MessageInputProps>(
               detectMention(e.target.value, e.target.selectionStart);
             }}
             onFocus={() => {
-              // On mobile, scroll input into view after keyboard animation
-              setTimeout(() => {
-                textareaRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-              }, 350);
+              // Keyboard handling is done via visualViewport in ChatInterface
             }}
             onKeyDown={handleKeyDown}
             placeholder="Type into the void..."
